@@ -51,6 +51,7 @@ import {
   ContentBlockDelta,
   ImageFormat,
   Tool,
+  ToolUseBlockStart,
 } from "@aws-sdk/client-bedrock-runtime";
 
 export const amazonNovaProV1 = (
@@ -1167,6 +1168,13 @@ export function awsBedrockModel(
         let outputTokens = 0;
         let totalTokens = 0;
 
+        // Track tool use blocks for streaming
+        // Map from contentBlockIndex to tool use info
+        const toolUseBlocks: Map<
+          number,
+          { toolUseId: string; name: string; inputJson: string }
+        > = new Map();
+
         for await (const event of response.stream!) {
           if (event.messageStop) {
             sendChunk({
@@ -1175,15 +1183,45 @@ export function awsBedrockModel(
             });
           }
 
+          // Handle tool use start events - these contain toolUseId and name
+          if (event.contentBlockStart) {
+            const startBlock = event.contentBlockStart;
+            const blockIndex = startBlock.contentBlockIndex ?? 0;
+            if (
+              startBlock.start &&
+              "toolUse" in startBlock.start &&
+              startBlock.start.toolUse
+            ) {
+              const toolStart = startBlock.start
+                .toolUse as ToolUseBlockStart;
+              toolUseBlocks.set(blockIndex, {
+                toolUseId: toolStart.toolUseId || "",
+                name: toolStart.name || "",
+                inputJson: "",
+              });
+            }
+          }
+
           if (event.contentBlockDelta) {
+            const blockIndex = event.contentBlockDelta.contentBlockIndex ?? 0;
             const delta = event.contentBlockDelta.delta as ContentBlockDelta;
-            // Only process text deltas, skip reasoning content deltas
+
+            // Handle text deltas
             if (delta && "text" in delta && delta.text) {
               accumulatedText += delta.text;
               sendChunk({
                 index: 0,
                 content: [{ text: delta.text }],
               });
+            }
+
+            // Handle tool use input deltas - accumulate the JSON input
+            if (delta && "toolUse" in delta && delta.toolUse) {
+              const toolUseDelta = delta.toolUse;
+              const existingBlock = toolUseBlocks.get(blockIndex);
+              if (existingBlock && toolUseDelta.input) {
+                existingBlock.inputJson += toolUseDelta.input;
+              }
             }
           }
 
@@ -1195,16 +1233,46 @@ export function awsBedrockModel(
           }
         }
 
+        // Build tool request parts from accumulated tool use blocks
+        const toolRequestParts: Part[] = [];
+        for (const [, toolBlock] of toolUseBlocks) {
+          if (toolBlock.name && toolBlock.toolUseId) {
+            let parsedInput = {};
+            try {
+              if (toolBlock.inputJson) {
+                parsedInput = JSON.parse(toolBlock.inputJson);
+              }
+            } catch {
+              // If JSON parsing fails, use empty object
+              parsedInput = {};
+            }
+            toolRequestParts.push({
+              toolRequest: {
+                name: toolBlock.name,
+                ref: toolBlock.toolUseId,
+                input: parsedInput,
+              },
+            });
+          }
+        }
+
         // Return accumulated content for streaming
         const jsonMode = request.output?.format === "json";
+
+        // If we have tool calls, return them; otherwise return text content
+        const content: Part[] =
+          toolRequestParts.length > 0
+            ? toolRequestParts
+            : [
+                jsonMode
+                  ? { data: accumulatedText ? JSON.parse(accumulatedText) : {} }
+                  : { text: accumulatedText },
+              ];
+
         return {
           message: {
             role: "model" as const,
-            content: [
-              jsonMode
-                ? { data: accumulatedText ? JSON.parse(accumulatedText) : {} }
-                : { text: accumulatedText },
-            ],
+            content,
           },
           usage: {
             inputTokens,
