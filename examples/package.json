@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/credential-providers": "^3.940.0",
+    "@aws-sdk/credential-providers": "^3.981.0",
     "@genkit-ai/express": "^1.1.0",
     "genkit": "^1.28.0",
     "genkitx-bedrock": "file:../",
