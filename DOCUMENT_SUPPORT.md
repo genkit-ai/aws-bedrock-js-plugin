@@ -23,7 +23,7 @@ const response = await ai.generate({
       data: {
         mimeType: 'text/csv',
         fileName: 'sales-data.csv',
-        content: 'data:text/csv;base64,TmFtZSxBZ2UKSm9obiwzMAo...' // Base64 encoded content
+        content: 'data:text/csv;base64,<BASE64_ENCODED_CONTENT>' // Replace with actual base64 content
       }
     }
   ]
@@ -37,7 +37,7 @@ const pdfResponse = await ai.generate({
       data: {
         mimeType: 'application/pdf',
         fileName: 'report.pdf',
-        content: 'data:application/pdf;base64,JVBERi0xLjQKJeLjz9MKMSAw...' // Base64 encoded content
+        content: 'data:application/pdf;base64,<BASE64_ENCODED_CONTENT>' // Replace with actual base64 content
       }
     }
   ]
