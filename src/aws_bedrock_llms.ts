@@ -820,22 +820,34 @@ const regex = /data:.*base64,/;
 const getDataPart = (dataUrl: string) => dataUrl.replace(regex, "");
 
 /**
+ * Interface for document data structure
+ */
+interface DocumentData {
+  mimeType: string;
+  content: string;
+  fileName?: string;
+}
+
+/**
  * Maps MIME types to AWS Bedrock DocumentFormat
  */
 function mimeTypeToDocumentFormat(mimeType: string): DocumentFormat {
   const lowerMimeType = mimeType.toLowerCase();
   
-  if (lowerMimeType.includes("csv")) return "csv";
-  if (lowerMimeType.includes("pdf")) return "pdf";
-  if (lowerMimeType.includes("html")) return "html";
-  if (lowerMimeType.includes("markdown") || lowerMimeType.includes("md")) return "md";
-  if (lowerMimeType.includes("docx") || lowerMimeType.includes("wordprocessingml")) return "docx";
-  if (lowerMimeType.includes("doc") && !lowerMimeType.includes("docx")) return "doc";
-  if (lowerMimeType.includes("xlsx") || lowerMimeType.includes("spreadsheetml")) return "xlsx";
-  if (lowerMimeType.includes("xls") && !lowerMimeType.includes("xlsx")) return "xls";
-  if (lowerMimeType.includes("text/plain")) return "txt";
+  // Exact matches first
+  if (lowerMimeType === "text/csv") return "csv";
+  if (lowerMimeType === "application/pdf") return "pdf";
+  if (lowerMimeType === "text/html") return "html";
+  if (lowerMimeType === "text/markdown" || lowerMimeType === "text/md") return "md";
+  if (lowerMimeType === "text/plain") return "txt";
   
-  // Default to txt for text-based formats
+  // Office document formats
+  if (lowerMimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "docx";
+  if (lowerMimeType === "application/msword") return "doc";
+  if (lowerMimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return "xlsx";
+  if (lowerMimeType === "application/vnd.ms-excel") return "xls";
+  
+  // Fallback patterns for common cases
   if (lowerMimeType.startsWith("text/")) return "txt";
   
   throw Error(`Unsupported document MIME type: ${mimeType}`);
@@ -862,7 +874,7 @@ export function toAwsBedrockTextAndMedia(
     };
   } else if (part.data) {
     // Handle document/data content type
-    const data = part.data as any;
+    const data = part.data as DocumentData;
     
     if (!data.mimeType || !data.content) {
       throw Error(
