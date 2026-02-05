@@ -856,16 +856,6 @@ function isImageContentType(contentType?: string): boolean {
 }
 
 /**
- * Checks if a content type is a document type supported by Bedrock.
- * @param contentType The content type to check.
- * @returns True if the content type is a document type.
- */
-function isDocumentContentType(contentType?: string): boolean {
-  if (!contentType) return false;
-  return contentType in MIME_TO_DOCUMENT_FORMAT;
-}
-
-/**
  * Gets the Bedrock document format from a MIME type.
  * @param contentType The MIME type.
  * @returns The Bedrock document format, or undefined if not supported.
@@ -875,14 +865,14 @@ function getDocumentFormat(contentType: string): DocumentFormat | undefined {
 }
 
 /**
- * Generates a filename from a document format.
+ * Generates a unique filename from a document format.
  * AWS Bedrock document names can only contain alphanumeric characters,
  * whitespace, hyphens, parentheses, and square brackets (no dots/periods).
  * @param format The document format.
- * @returns A valid document name.
+ * @returns A valid unique document name.
  */
 function generateFilenameFromFormat(format: DocumentFormat): string {
-  return `document-${format}`;
+  return `document-${format}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function toAwsBedrockTextAndMedia(
@@ -904,8 +894,8 @@ export function toAwsBedrockTextAndMedia(
       Buffer.from(getDataPart(part.media.url), "base64"),
     );
 
-    // Check if this is a document type
-    if (contentType && isDocumentContentType(contentType)) {
+    // Handle media based on content type
+    if (contentType) {
       const docFormat = getDocumentFormat(contentType);
       if (docFormat) {
         return {
@@ -916,23 +906,29 @@ export function toAwsBedrockTextAndMedia(
           },
         };
       }
+
+      if (isImageContentType(contentType)) {
+        return {
+          image: {
+            source: { bytes: dataBuffer },
+            format: imageFormat,
+          },
+        };
+      }
+
+      // For unsupported content types, throw an error
+      throw Error(
+        `Unsupported media content type: ${contentType}. Supported types are images and documents (pdf, csv, txt, html, md, doc, docx, xls, xlsx).`,
+      );
     }
 
-    // Default to image for image types or when no contentType is provided
-    // (preserve legacy behavior)
-    if (!contentType || isImageContentType(contentType)) {
-      return {
-        image: {
-          source: { bytes: dataBuffer },
-          format: imageFormat,
-        },
-      };
-    }
-
-    // For unsupported content types, throw an error
-    throw Error(
-      `Unsupported media content type: ${contentType}. Supported types are images and documents (pdf, csv, txt, html, md, doc, docx, xls, xlsx).`,
-    );
+    // Default to image when no contentType is provided (preserve legacy behavior)
+    return {
+      image: {
+        source: { bytes: dataBuffer },
+        format: imageFormat,
+      },
+    };
   }
   throw Error(
     `Unsupported genkit part fields encountered for current message role: ${part}.`,
