@@ -52,6 +52,7 @@ import {
   ImageFormat,
   Tool,
   ToolUseBlockStart,
+  DocumentFormat,
 } from "@aws-sdk/client-bedrock-runtime";
 
 export const amazonNovaProV1 = (
@@ -818,6 +819,28 @@ function toAwsBedrockTool(tool: ToolDefinition): Tool {
 const regex = /data:.*base64,/;
 const getDataPart = (dataUrl: string) => dataUrl.replace(regex, "");
 
+/**
+ * Maps MIME types to AWS Bedrock DocumentFormat
+ */
+function mimeTypeToDocumentFormat(mimeType: string): DocumentFormat {
+  const lowerMimeType = mimeType.toLowerCase();
+  
+  if (lowerMimeType.includes("csv")) return "csv";
+  if (lowerMimeType.includes("pdf")) return "pdf";
+  if (lowerMimeType.includes("html")) return "html";
+  if (lowerMimeType.includes("markdown") || lowerMimeType.includes("md")) return "md";
+  if (lowerMimeType.includes("docx") || lowerMimeType.includes("wordprocessingml")) return "docx";
+  if (lowerMimeType.includes("doc") && !lowerMimeType.includes("docx")) return "doc";
+  if (lowerMimeType.includes("xlsx") || lowerMimeType.includes("spreadsheetml")) return "xlsx";
+  if (lowerMimeType.includes("xls") && !lowerMimeType.includes("xlsx")) return "xls";
+  if (lowerMimeType.includes("text/plain")) return "txt";
+  
+  // Default to txt for text-based formats
+  if (lowerMimeType.startsWith("text/")) return "txt";
+  
+  throw Error(`Unsupported document MIME type: ${mimeType}`);
+}
+
 export function toAwsBedrockTextAndMedia(
   part: Part,
   imageFormat: ImageFormat,
@@ -835,6 +858,28 @@ export function toAwsBedrockTextAndMedia(
       image: {
         source: { bytes: imageBuffer },
         format: imageFormat,
+      },
+    };
+  } else if (part.data) {
+    // Handle document/data content type
+    const data = part.data as any;
+    
+    if (!data.mimeType || !data.content) {
+      throw Error(
+        `Document data must include 'mimeType' and 'content' fields. Received: ${JSON.stringify(data)}`,
+      );
+    }
+    
+    const format = mimeTypeToDocumentFormat(data.mimeType);
+    const documentBuffer = new Uint8Array(
+      Buffer.from(getDataPart(data.content), "base64"),
+    );
+    
+    return {
+      document: {
+        format: format,
+        name: data.fileName || "document",
+        source: { bytes: documentBuffer },
       },
     };
   }
