@@ -250,6 +250,133 @@ const response = await ai.generate({
 });
 ```
 
+## Deploying Genkit Flows as AWS Lambda Functions
+
+This plugin includes an `onCallGenkit` helper function (similar to Firebase Functions' `onCallGenkit`) that makes it easy to deploy Genkit flows as AWS Lambda functions.
+
+### Basic Usage
+
+```typescript
+import { genkit, z } from 'genkit';
+import { awsBedrock, amazonNovaProV1, onCallGenkit } from 'genkitx-aws-bedrock';
+
+const ai = genkit({
+  plugins: [awsBedrock()],
+  model: amazonNovaProV1(),
+});
+
+const myFlow = ai.defineFlow(
+  {
+    name: 'myFlow',
+    inputSchema: z.string(),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    const { text } = await ai.generate({ prompt: input });
+    return text;
+  }
+);
+
+// Export as Lambda handler
+export const handler = onCallGenkit(myFlow);
+```
+
+### With Configuration Options
+
+```typescript
+import { onCallGenkit, requireApiKey } from 'genkitx-aws-bedrock';
+
+export const handler = onCallGenkit(
+  {
+    // CORS configuration
+    cors: {
+      origin: 'https://myapp.com',
+      credentials: true,
+    },
+    // Authorization policy
+    authPolicy: requireApiKey('X-API-Key', process.env.API_KEY!),
+    // Debug logging
+    debug: true,
+    // Custom error handling
+    onError: async (error) => ({
+      statusCode: 500,
+      message: error.message,
+    }),
+  },
+  myFlow
+);
+```
+
+### Authentication Policies
+
+The plugin provides built-in authentication helpers:
+
+```typescript
+import {
+  allowAll,           // Allow all requests
+  requireHeader,      // Require a specific header
+  requireApiKey,      // Require API key in header
+  requireBearerToken, // Require Bearer token with custom validation
+  allOf,              // Combine policies with AND logic
+  anyOf,              // Combine policies with OR logic
+} from 'genkitx-aws-bedrock';
+
+// Public endpoint
+export const publicHandler = onCallGenkit(
+  { authPolicy: allowAll() },
+  myFlow
+);
+
+// API key authentication
+export const apiKeyHandler = onCallGenkit(
+  { authPolicy: requireApiKey('X-API-Key', 'my-secret-key') },
+  myFlow
+);
+
+// Bearer token with custom validation
+export const tokenHandler = onCallGenkit(
+  {
+    authPolicy: requireBearerToken(async (token) => {
+      return await validateJWT(token);
+    })
+  },
+  myFlow
+);
+
+// Combine multiple policies (all must pass)
+export const strictHandler = onCallGenkit(
+  {
+    authPolicy: allOf(
+      requireHeader('X-Client-ID'),
+      requireBearerToken(validateToken)
+    )
+  },
+  myFlow
+);
+```
+
+### Response Format
+
+Successful response:
+```json
+{
+  "success": true,
+  "data": { /* flow output */ },
+  "flowName": "myFlow"
+}
+```
+
+Error response:
+```json
+{
+  "success": false,
+  "error": "Error message",
+  "flowName": "myFlow"
+}
+```
+
+See the [Lambda example](./examples/lambda) for a complete working project with Serverless Framework deployment.
+
 ## Supported models
 
 This plugin supports all currently available **Chat/Completion** and **Embeddings** models from AWS Bedrock. This plugin supports image input and multimodal models.

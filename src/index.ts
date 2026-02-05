@@ -57,6 +57,25 @@ import {
   SUPPORTED_EMBEDDING_MODELS,
 } from "./aws_bedrock_embedders.js";
 
+import {
+  onCallGenkit,
+  allowAll,
+  requireHeader,
+  requireBearerToken,
+  requireApiKey,
+  allOf,
+  anyOf,
+  type FlowRunOptions,
+  type LambdaOptions,
+  type CorsOptions,
+  type FlowResponse,
+  type FlowErrorResponse,
+  type LambdaFlowResponse,
+  type LambdaHandler,
+  type LambdaHandlerV2,
+  type CallableLambdaFunction,
+} from "./aws_lambda.js";
+
 export {
   amazonNovaProV1,
   amazonNovaLiteV1,
@@ -103,6 +122,29 @@ export {
   amazonTitanEmbedTextG1V1,
   cohereEmbedEnglishV3,
   cohereEmbedMultilingualV3,
+};
+
+// AWS Lambda exports
+export {
+  onCallGenkit,
+  allowAll,
+  requireHeader,
+  requireBearerToken,
+  requireApiKey,
+  allOf,
+  anyOf,
+};
+
+export type {
+  FlowRunOptions,
+  LambdaOptions,
+  CorsOptions,
+  FlowResponse,
+  FlowErrorResponse,
+  LambdaFlowResponse,
+  LambdaHandler,
+  LambdaHandlerV2,
+  CallableLambdaFunction,
 };
 
 export interface PluginOptions extends BedrockRuntimeClientConfig {

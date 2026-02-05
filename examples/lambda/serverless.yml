@@ -1,0 +1,72 @@
+service: genkit-aws-lambda-example
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  memorySize: 512
+  timeout: 30
+  environment:
+    NODE_ENV: ${self:provider.stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+            - bedrock:InvokeModelWithResponseStream
+          Resource: '*'
+
+build:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    exclude:
+      - '@aws-sdk/*'
+    target: node20
+    platform: node
+
+plugins:
+  - serverless-offline
+
+functions:
+  # Story Generator - Basic Example
+  storyGenerator:
+    handler: src/index.storyGeneratorHandler
+    events:
+      - http:
+          path: /generate
+          method: post
+          cors: true
+      - http:
+          path: /generate
+          method: options
+          cors: true
+
+  # Joke Flow - Simple Example
+  jokeGenerator:
+    handler: src/index.jokeHandler
+    events:
+      - http:
+          path: /joke
+          method: post
+          cors: true
+      - http:
+          path: /joke
+          method: options
+          cors: true
+
+  # Protected Flow - With API Key Authentication
+  protectedFlow:
+    handler: src/index.protectedHandler
+    events:
+      - http:
+          path: /protected
+          method: post
+          cors: true
+      - http:
+          path: /protected
+          method: options
+          cors: true

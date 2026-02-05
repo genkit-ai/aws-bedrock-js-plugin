@@ -1192,8 +1192,7 @@ export function awsBedrockModel(
               "toolUse" in startBlock.start &&
               startBlock.start.toolUse
             ) {
-              const toolStart = startBlock.start
-                .toolUse as ToolUseBlockStart;
+              const toolStart = startBlock.start.toolUse as ToolUseBlockStart;
               toolUseBlocks.set(blockIndex, {
                 toolUseId: toolStart.toolUseId || "",
                 name: toolStart.name || "",
