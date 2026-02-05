@@ -50,6 +50,7 @@ import {
   SystemContentBlock,
   ContentBlockDelta,
   ImageFormat,
+  DocumentFormat,
   Tool,
   ToolUseBlockStart,
 } from "@aws-sdk/client-bedrock-runtime";
@@ -818,6 +819,62 @@ function toAwsBedrockTool(tool: ToolDefinition): Tool {
 const regex = /data:.*base64,/;
 const getDataPart = (dataUrl: string) => dataUrl.replace(regex, "");
 
+/**
+ * Extracts the content type from a data URL.
+ * @param url The data URL to parse.
+ * @returns The content type, or null if invalid.
+ */
+function extractContentTypeFromDataUrl(url: string): string | null {
+  const match = url.match(/^data:([^;]+);base64,/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Map of MIME types to Bedrock document formats.
+ */
+const MIME_TO_DOCUMENT_FORMAT: Record<string, DocumentFormat> = {
+  "application/pdf": "pdf",
+  "text/csv": "csv",
+  "text/plain": "txt",
+  "text/html": "html",
+  "text/markdown": "md",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+};
+
+/**
+ * Checks if a content type is an image type.
+ * @param contentType The content type to check.
+ * @returns True if the content type is an image type.
+ */
+function isImageContentType(contentType?: string): boolean {
+  if (!contentType) return false;
+  return contentType.startsWith("image/");
+}
+
+/**
+ * Gets the Bedrock document format from a MIME type.
+ * @param contentType The MIME type.
+ * @returns The Bedrock document format, or undefined if not supported.
+ */
+function getDocumentFormat(contentType: string): DocumentFormat | undefined {
+  return MIME_TO_DOCUMENT_FORMAT[contentType];
+}
+
+/**
+ * Generates a unique filename from a document format.
+ * AWS Bedrock document names can only contain alphanumeric characters,
+ * whitespace, hyphens, parentheses, and square brackets (no dots/periods).
+ * @param format The document format.
+ * @returns A valid unique document name.
+ */
+function generateFilenameFromFormat(format: DocumentFormat): string {
+  return `document-${format}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function toAwsBedrockTextAndMedia(
   part: Part,
   imageFormat: ImageFormat,
@@ -827,13 +884,48 @@ export function toAwsBedrockTextAndMedia(
       text: part.text,
     };
   } else if (part.media) {
-    const imageBuffer = new Uint8Array(
+    // Determine the content type from the media part or data URL
+    let contentType = part.media.contentType;
+    if (!contentType && part.media.url.startsWith("data:")) {
+      contentType = extractContentTypeFromDataUrl(part.media.url) || undefined;
+    }
+
+    const dataBuffer = new Uint8Array(
       Buffer.from(getDataPart(part.media.url), "base64"),
     );
 
+    // Handle media based on content type
+    if (contentType) {
+      const docFormat = getDocumentFormat(contentType);
+      if (docFormat) {
+        return {
+          document: {
+            name: generateFilenameFromFormat(docFormat),
+            format: docFormat,
+            source: { bytes: dataBuffer },
+          },
+        };
+      }
+
+      if (isImageContentType(contentType)) {
+        return {
+          image: {
+            source: { bytes: dataBuffer },
+            format: imageFormat,
+          },
+        };
+      }
+
+      // For unsupported content types, throw an error
+      throw Error(
+        `Unsupported media content type: ${contentType}. Supported types are images and documents (pdf, csv, txt, html, md, doc, docx, xls, xlsx).`,
+      );
+    }
+
+    // Default to image when no contentType is provided (preserve legacy behavior)
     return {
       image: {
-        source: { bytes: imageBuffer },
+        source: { bytes: dataBuffer },
         format: imageFormat,
       },
     };
@@ -1192,8 +1284,7 @@ export function awsBedrockModel(
               "toolUse" in startBlock.start &&
               startBlock.start.toolUse
             ) {
-              const toolStart = startBlock.start
-                .toolUse as ToolUseBlockStart;
+              const toolStart = startBlock.start.toolUse as ToolUseBlockStart;
               toolUseBlocks.set(blockIndex, {
                 toolUseId: toolStart.toolUseId || "",
                 name: toolStart.name || "",
