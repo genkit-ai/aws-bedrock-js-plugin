@@ -109,7 +109,112 @@ export const embedderFlow = ai.defineFlow(
   }
 );
 
+/**
+ * Document analysis flow - demonstrates how to send documents (PDF, CSV, etc.)
+ * to Bedrock models for analysis.
+ * 
+ * Supported document types:
+ * - PDF (application/pdf)
+ * - CSV (text/csv)
+ * - TXT (text/plain)
+ * - HTML (text/html)
+ * - Markdown (text/markdown)
+ * - DOC (application/msword)
+ * - DOCX (application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+ * - XLS (application/vnd.ms-excel)
+ * - XLSX (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
+ * 
+ * Example usage:
+ * ```
+ * curl -X POST http://localhost:3400/documentAnalysisFlow \
+ *   -H "Content-Type: application/json" \
+ *   -d '{
+ *     "data": {
+ *       "documentBase64": "BASE64_ENCODED_DOCUMENT_CONTENT",
+ *       "mimeType": "application/pdf",
+ *       "question": "What is this document about?"
+ *     }
+ *   }'
+ * ```
+ */
+export const documentAnalysisFlow = ai.defineFlow(
+  {
+    name: 'documentAnalysisFlow',
+    inputSchema: z.object({
+      documentBase64: z.string().describe('Base64 encoded document content'),
+      mimeType: z.string().describe('MIME type of the document (e.g., application/pdf, text/csv)'),
+      question: z.string().describe('Question to ask about the document'),
+    }),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    const dataUrl = `data:${input.mimeType};base64,${input.documentBase64}`;
+    
+    const llmResponse = await ai.generate({
+      prompt: [
+        {
+          media: {
+            contentType: input.mimeType,
+            url: dataUrl,
+          },
+        },
+        {
+          text: input.question,
+        },
+      ],
+    });
+    
+    return llmResponse.text;
+  }
+);
+
+/**
+ * CSV analysis flow - a specialized flow for analyzing CSV data.
+ * 
+ * Example usage:
+ * ```
+ * curl -X POST http://localhost:3400/csvAnalysisFlow \
+ *   -H "Content-Type: application/json" \
+ *   -d '{
+ *     "data": {
+ *       "csvContent": "name,age,city\nAlice,30,NYC\nBob,25,LA\nCharlie,35,Chicago",
+ *       "question": "What is the average age?"
+ *     }
+ *   }'
+ * ```
+ */
+export const csvAnalysisFlow = ai.defineFlow(
+  {
+    name: 'csvAnalysisFlow',
+    inputSchema: z.object({
+      csvContent: z.string().describe('CSV content as a string'),
+      question: z.string().describe('Question to ask about the CSV data'),
+    }),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    // Convert CSV string to base64
+    const csvBase64 = Buffer.from(input.csvContent).toString('base64');
+    const dataUrl = `data:text/csv;base64,${csvBase64}`;
+    
+    const llmResponse = await ai.generate({
+      prompt: [
+        {
+          media: {
+            contentType: 'text/csv',
+            url: dataUrl,
+          },
+        },
+        {
+          text: input.question,
+        },
+      ],
+    });
+    
+    return llmResponse.text;
+  }
+);
 
 startFlowServer({
-  flows: [jokeFlow, customModelFlow, streamingFlow, embedderFlow],
+  flows: [jokeFlow, customModelFlow, streamingFlow, embedderFlow, documentAnalysisFlow, csvAnalysisFlow],
 });
