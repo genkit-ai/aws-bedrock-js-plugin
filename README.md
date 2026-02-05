@@ -348,7 +348,10 @@ export const strictHandler = onCallGenkit(
   {
     authPolicy: allOf(
       requireHeader('X-Client-ID'),
-      requireBearerToken(validateToken)
+      requireBearerToken(async (token) => {
+        // Both sync and async validators are supported
+        return await validateToken(token);
+      })
     )
   },
   myFlow

@@ -231,9 +231,8 @@ function buildCorsHeaders(
     // Check if request origin is in allowed list
     if (requestOrigin && origin.includes(requestOrigin)) {
       headers["Access-Control-Allow-Origin"] = requestOrigin;
-    } else if (origin.length > 0) {
-      headers["Access-Control-Allow-Origin"] = origin[0];
     }
+    // If request origin is not in the allowlist, don't set the header
   } else {
     headers["Access-Control-Allow-Origin"] = origin;
   }
@@ -449,7 +448,34 @@ export function onCallGenkit<F extends Flow>(
         console.log(`[${flowName}] Running flow with input:`, data);
       }
 
-      // Execute the flow
+      // Execute the flow (with optional streaming)
+      if (opts.enableStreaming) {
+        // Streaming mode: collect chunks and return final result
+        const { stream, output } = flow.stream(data, { context: flowContext });
+        const chunks: FlowStream<F>[] = [];
+
+        for await (const chunk of stream) {
+          chunks.push(chunk);
+        }
+
+        const result = await output;
+
+        if (opts.debug) {
+          console.log(`[${flowName}] Flow completed successfully (streaming)`);
+        }
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            success: true,
+            data: result as FlowOutput<F>,
+            flowName,
+          } satisfies FlowResponse<FlowOutput<F>>),
+        };
+      }
+
+      // Non-streaming mode
       const { result } = await flow.run(data, { context: flowContext });
 
       if (opts.debug) {
