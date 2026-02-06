@@ -1,0 +1,36 @@
+{
+  "name": "genkitx-bedrock-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node lib/index.js",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "genkit:dev": "cross-env GENKIT_ENV=dev npm run dev",
+    "genkit:start": "cross-env GENKIT_ENV=dev genkit start -- tsx --watch src/index.ts",
+    "dev": "export GENKIT_RUNTIME_ID=$(openssl rand -hex 8) && node lib/index.js 2>&1",
+    "start:server": "tsx src/server.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/credential-providers": "^3.940.0",
+    "@genkit-ai/express": "^1.28.0",
+    "@genkit-ai/mcp": "^1.28.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "@types/express": "^5.0.6",
+    "express": "^5.2.1",
+    "genkit": "^1.28.0",
+    "genkitx-bedrock": "file:../../",
+    "tsx": "^4.19.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.6.2"
+  }
+}

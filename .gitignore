@@ -6,6 +6,8 @@ lib/
 plugins/.DS_Store
 lerna-debug.log
 .DS_Store
+.serverless
+.genkit
 
 docs
 

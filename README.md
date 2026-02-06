@@ -250,6 +250,149 @@ const response = await ai.generate({
 });
 ```
 
+## Deploying Genkit Flows as AWS Lambda Functions
+
+This plugin includes an `onCallGenkit` helper function (similar to Firebase Functions' `onCallGenkit`) that makes it easy to deploy Genkit flows as AWS Lambda functions.
+
+### Basic Usage
+
+```typescript
+import { genkit, z } from 'genkit';
+import { awsBedrock, amazonNovaProV1, onCallGenkit } from 'genkitx-aws-bedrock';
+
+const ai = genkit({
+  plugins: [awsBedrock()],
+  model: amazonNovaProV1(),
+});
+
+const myFlow = ai.defineFlow(
+  {
+    name: 'myFlow',
+    inputSchema: z.string(),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    const { text } = await ai.generate({ prompt: input });
+    return text;
+  }
+);
+
+// Export as Lambda handler
+export const handler = onCallGenkit(myFlow);
+```
+
+### With Configuration Options
+
+```typescript
+import { onCallGenkit, requireApiKey } from 'genkitx-aws-bedrock';
+
+export const handler = onCallGenkit(
+  {
+    // CORS configuration
+    cors: {
+      origin: 'https://myapp.com',
+      credentials: true,
+    },
+    // Context provider for authentication
+    contextProvider: requireApiKey('X-API-Key', process.env.API_KEY!),
+    // Debug logging
+    debug: true,
+    // Custom error handling
+    onError: async (error) => ({
+      statusCode: 500,
+      message: error.message,
+    }),
+  },
+  myFlow
+);
+```
+
+### Context Providers for Authentication
+
+The plugin provides built-in context provider helpers that follow Genkit's `ContextProvider` pattern (same as `@genkit-ai/express`):
+
+```typescript
+import {
+  allowAll,           // Allow all requests
+  requireHeader,      // Require a specific header
+  requireApiKey,      // Require API key in header
+  requireBearerToken, // Require Bearer token with custom validation
+  allOf,              // Combine providers with AND logic
+  anyOf,              // Combine providers with OR logic
+} from 'genkitx-aws-bedrock';
+
+// Public endpoint
+export const publicHandler = onCallGenkit(
+  { contextProvider: allowAll() },
+  myFlow
+);
+
+// API key authentication
+export const apiKeyHandler = onCallGenkit(
+  { contextProvider: requireApiKey('X-API-Key', 'my-secret-key') },
+  myFlow
+);
+
+// Bearer token with custom validation
+export const tokenHandler = onCallGenkit(
+  {
+    contextProvider: requireBearerToken(async (token) => {
+      const user = await validateJWT(token);
+      return { auth: { user } };
+    })
+  },
+  myFlow
+);
+
+// Combine multiple providers (all must pass)
+export const strictHandler = onCallGenkit(
+  {
+    contextProvider: allOf(
+      requireHeader('X-Client-ID'),
+      requireBearerToken(async (token) => {
+        return await validateToken(token);
+      })
+    )
+  },
+  myFlow
+);
+```
+
+### Request & Response Format
+
+The handler follows the Genkit callable protocol (same as `@genkit-ai/express`).
+
+Request body (callable protocol):
+```json
+{
+  "data": { /* flow input */ }
+}
+```
+
+Direct input is also supported for convenience:
+```json
+{ /* flow input directly */ }
+```
+
+Successful response:
+```json
+{
+  "result": { /* flow output */ }
+}
+```
+
+Error response:
+```json
+{
+  "error": {
+    "status": "UNAUTHENTICATED",
+    "message": "Missing auth token"
+  }
+}
+```
+
+See the [Lambda example](./examples/lambda) for a complete working project with Serverless Framework deployment.
+
 ## Supported models
 
 This plugin supports all currently available **Chat/Completion** and **Embeddings** models from AWS Bedrock. This plugin supports image input and multimodal models.
