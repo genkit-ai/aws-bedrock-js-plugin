@@ -184,9 +184,11 @@ const protectedSummaryFlow = ai.defineFlow(
  * @example
  * POST /generate
  * {
- *   "topic": "a robot learning to feel emotions",
- *   "style": "sci-fi",
- *   "length": "medium"
+ *   "data": {
+ *     "topic": "a robot learning to feel emotions",
+ *     "style": "sci-fi",
+ *     "length": "medium"
+ *   }
  * }
  */
 export const storyGeneratorHandler = onCallGenkit(
@@ -208,7 +210,9 @@ export const storyGeneratorHandler = onCallGenkit(
  * @example
  * POST /joke
  * {
- *   "subject": "programming"
+ *   "data": {
+ *     "subject": "programming"
+ *   }
  * }
  */
 export const jokeHandler = onCallGenkit(jokeFlow);
@@ -216,20 +220,22 @@ export const jokeHandler = onCallGenkit(jokeFlow);
 /**
  * Protected Handler with API Key
  * 
- * Demonstrates using authentication policies
+ * Demonstrates using ContextProvider for authentication
  * Requires X-API-Key header with correct value
  * 
  * @example
  * POST /protected
  * Headers: { "X-API-Key": "your-secret-api-key" }
  * {
- *   "text": "Long text to summarize...",
- *   "maxLength": 50
+ *   "data": {
+ *     "text": "Long text to summarize...",
+ *     "maxLength": 50
+ *   }
  * }
  */
 export const protectedHandler = onCallGenkit(
   {
-    authPolicy: requireApiKey('X-API-Key', process.env.API_KEY || 'demo-api-key'),
+    contextProvider: requireApiKey('X-API-Key', process.env.API_KEY || 'demo-api-key'),
     cors: {
       origin: ['https://myapp.com', 'http://localhost:3000'],
       credentials: true,

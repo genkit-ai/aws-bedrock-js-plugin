@@ -20,9 +20,18 @@ import type {
   APIGatewayProxyResult,
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
-  Context,
+  Context as LambdaContext,
 } from "aws-lambda";
-import type { Flow, z } from "genkit";
+import { type Flow, type z, type ActionContext, UserFacingError } from "genkit";
+import {
+  getCallableJSON,
+  getHttpStatus,
+  type ContextProvider,
+  type RequestData,
+} from "genkit/context";
+
+// Re-export genkit context types for convenience
+export type { ContextProvider, RequestData, ActionContext };
 
 /**
  * Type helpers to extract input/output types from Flow
@@ -78,9 +87,34 @@ export interface CorsOptions {
 }
 
 /**
+ * Extended action context that includes Lambda-specific information
+ */
+export interface LambdaActionContext extends ActionContext {
+  /** Lambda-specific context data */
+  lambda?: {
+    event: {
+      requestContext: Record<string, unknown>;
+      headers: Record<string, string | undefined>;
+      queryStringParameters: Record<string, string | undefined> | null;
+      pathParameters: Record<string, string | undefined> | null;
+    };
+    context: {
+      functionName: string;
+      functionVersion: string;
+      invokedFunctionArn: string;
+      memoryLimitInMB: string;
+      awsRequestId: string;
+    };
+  };
+}
+
+/**
  * Options for configuring the Lambda handler
  */
-export interface LambdaOptions<T = unknown> {
+export interface LambdaOptions<
+  C extends ActionContext = ActionContext,
+  T = unknown,
+> {
   /**
    * CORS configuration. Set to false to disable CORS headers.
    * @default { origin: '*', methods: ['POST', 'OPTIONS'] }
@@ -88,15 +122,37 @@ export interface LambdaOptions<T = unknown> {
   cors?: CorsOptions | boolean;
 
   /**
-   * Custom authorization function that runs before the flow is executed.
-   * Return true to allow the request, false to deny.
-   * Can also throw an error with a custom message.
+   * Context provider that parses request data and returns context for the flow.
+   * This follows the same pattern as express, next.js, and other Genkit integrations.
+   *
+   * The context provider receives a RequestData object containing:
+   * - method: HTTP method ('GET', 'POST', etc.)
+   * - headers: Lowercase headers from the request
+   * - input: Parsed request body
+   *
+   * Return an ActionContext object that will be available via getContext() in the flow.
+   * Throw UserFacingError for authentication/authorization failures.
+   *
+   * @example
+   * ```typescript
+   * import { UserFacingError } from 'genkit';
+   *
+   * const authProvider: ContextProvider = async (req) => {
+   *   const token = req.headers['authorization'];
+   *   if (!token) {
+   *     throw new UserFacingError('UNAUTHENTICATED', 'Missing auth token');
+   *   }
+   *   const user = await verifyToken(token);
+   *   return { auth: { user } };
+   * };
+   *
+   * export const handler = onCallGenkit(
+   *   { contextProvider: authProvider },
+   *   myFlow
+   * );
+   * ```
    */
-  authPolicy?: (
-    event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-    context: Context,
-    data: T,
-  ) => boolean | Promise<boolean>;
+  contextProvider?: ContextProvider<C, T>;
 
   /**
    * Whether to enable streaming responses using Lambda response streaming.
@@ -116,11 +172,6 @@ export interface LambdaOptions<T = unknown> {
       }>;
 
   /**
-   * Additional context to pass to the Genkit flow.
-   */
-  flowContext?: Record<string, unknown>;
-
-  /**
    * Whether to log incoming events (for debugging).
    * @default false
    */
@@ -128,22 +179,23 @@ export interface LambdaOptions<T = unknown> {
 }
 
 /**
- * Response wrapper for successful flow execution
+ * Response wrapper for successful flow execution (callable protocol).
+ * Follows the same format as express and other Genkit integrations.
  */
 export interface FlowResponse<T> {
-  success: true;
-  data: T;
-  flowName: string;
+  result: T;
 }
 
 /**
- * Response wrapper for failed flow execution
+ * Response wrapper for failed flow execution (callable protocol).
+ * Shape matches genkit's getCallableJSON output.
  */
 export interface FlowErrorResponse {
-  success: false;
-  error: string;
-  code?: string;
-  flowName?: string;
+  error: {
+    status: string;
+    message: string;
+    details?: unknown;
+  };
 }
 
 /**
@@ -156,7 +208,7 @@ export type LambdaFlowResponse<T> = FlowResponse<T> | FlowErrorResponse;
  */
 export type LambdaHandler = (
   event: APIGatewayProxyEvent,
-  context: Context,
+  context: LambdaContext,
 ) => Promise<APIGatewayProxyResult>;
 
 /**
@@ -164,7 +216,7 @@ export type LambdaHandler = (
  */
 export type LambdaHandlerV2 = (
   event: APIGatewayProxyEventV2,
-  context: Context,
+  context: LambdaContext,
 ) => Promise<APIGatewayProxyResultV2>;
 
 /**
@@ -267,7 +319,9 @@ function buildCorsHeaders(
 }
 
 /**
- * Parses the request body from an API Gateway event
+ * Parses the request body from an API Gateway event.
+ * Supports the Genkit callable protocol format where input is wrapped in { data: ... }
+ * as well as direct input format for convenience.
  */
 function parseRequestBody<T>(
   event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
@@ -281,9 +335,17 @@ function parseRequestBody<T>(
     : event.body;
 
   try {
-    return JSON.parse(body) as T;
+    const parsed = JSON.parse(body);
+    // Support callable protocol: { data: <input> }
+    if (parsed && typeof parsed === "object" && "data" in parsed) {
+      return parsed.data as T;
+    }
+    return parsed as T;
   } catch {
-    throw new Error("Invalid JSON in request body");
+    throw new UserFacingError(
+      "INVALID_ARGUMENT",
+      "Invalid JSON in request body",
+    );
   }
 }
 
@@ -298,11 +360,50 @@ function getRequestOrigin(
 }
 
 /**
+ * Converts Lambda event headers to lowercase record (as required by RequestData)
+ */
+function normalizeHeaders(
+  headers: Record<string, string | undefined> | undefined,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!headers) return result;
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (value !== undefined) {
+      result[key.toLowerCase()] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Converts Lambda event to Genkit RequestData format
+ */
+function toRequestData<T>(
+  event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
+  input: T,
+): RequestData<T> {
+  // Determine HTTP method
+  const method =
+    "httpMethod" in event
+      ? event.httpMethod
+      : event.requestContext?.http?.method || "POST";
+
+  return {
+    method: method as RequestData["method"],
+    headers: normalizeHeaders(event.headers),
+    input,
+  };
+}
+
+
+
+/**
  * Creates a Lambda handler for a Genkit flow.
  *
  * This function wraps a Genkit flow to create an AWS Lambda handler that:
  * - Handles CORS automatically
- * - Supports custom authorization policies
+ * - Supports ContextProvider for authentication/authorization
  * - Provides proper error handling
  * - Returns standardized response format
  *
@@ -328,22 +429,41 @@ function getRequestOrigin(
  * export const handler = onCallGenkit(myFlow);
  * ```
  *
- * @example With options
+ * @example With ContextProvider for authentication
  * ```typescript
+ * import { UserFacingError, getContext } from 'genkit';
+ * import type { ContextProvider } from 'genkit/context';
+ *
+ * interface AuthContext {
+ *   auth: { user: { id: string; name: string } };
+ * }
+ *
+ * const authProvider: ContextProvider<AuthContext> = async (req) => {
+ *   const token = req.headers['authorization'];
+ *   if (!token) {
+ *     throw new UserFacingError('UNAUTHENTICATED', 'Missing auth token');
+ *   }
+ *   const user = await verifyToken(token);
+ *   return { auth: { user } };
+ * };
+ *
+ * // In your flow, access context via getContext()
+ * const myFlow = ai.defineFlow(
+ *   { name: 'myFlow', inputSchema: z.string(), outputSchema: z.string() },
+ *   async (input, { context }) => {
+ *     const { auth } = context;
+ *     console.log('User:', auth.user.name);
+ *     // ...
+ *   }
+ * );
+ *
  * export const handler = onCallGenkit(
- *   {
- *     cors: { origin: 'https://myapp.com', credentials: true },
- *     authPolicy: async (event, context, data) => {
- *       const token = event.headers['Authorization'];
- *       return validateToken(token);
- *     },
- *     debug: true,
- *   },
+ *   { contextProvider: authProvider },
  *   myFlow
  * );
  * ```
  *
- * @param action - The Genkit flow to wrap
+ * @param flow - The Genkit flow to wrap
  * @returns A Lambda handler function
  */
 export function onCallGenkit<F extends Flow>(
@@ -357,26 +477,26 @@ export function onCallGenkit<F extends Flow>(
  * @param flow - The Genkit flow to wrap
  * @returns A Lambda handler function
  */
-export function onCallGenkit<F extends Flow>(
-  opts: LambdaOptions<FlowInput<F>>,
+export function onCallGenkit<C extends ActionContext, F extends Flow>(
+  opts: LambdaOptions<C, FlowInput<F>>,
   flow: F,
 ): CallableLambdaFunction<F>;
 
 /**
  * Implementation of onCallGenkit
  */
-export function onCallGenkit<F extends Flow>(
-  optsOrFlow: F | LambdaOptions<FlowInput<F>>,
+export function onCallGenkit<C extends ActionContext, F extends Flow>(
+  optsOrFlow: F | LambdaOptions<C, FlowInput<F>>,
   flowArg?: F,
 ): CallableLambdaFunction<F> {
-  let opts: LambdaOptions<FlowInput<F>>;
+  let opts: LambdaOptions<C, FlowInput<F>>;
   let flow: F;
 
   if (arguments.length === 1) {
     opts = {};
     flow = optsOrFlow as F;
   } else {
-    opts = optsOrFlow as LambdaOptions<FlowInput<F>>;
+    opts = optsOrFlow as LambdaOptions<C, FlowInput<F>>;
     flow = flowArg as F;
   }
 
@@ -384,7 +504,7 @@ export function onCallGenkit<F extends Flow>(
 
   const handler: LambdaHandler = async (
     event: APIGatewayProxyEvent,
-    context: Context,
+    lambdaContext: LambdaContext,
   ): Promise<APIGatewayProxyResult> => {
     const requestOrigin = getRequestOrigin(event);
     const corsHeaders = buildCorsHeaders(opts.cors, requestOrigin);
@@ -401,96 +521,84 @@ export function onCallGenkit<F extends Flow>(
     // Debug logging
     if (opts.debug) {
       console.log(`[${flowName}] Event:`, JSON.stringify(event, null, 2));
-      console.log(`[${flowName}] Context:`, JSON.stringify(context, null, 2));
+      console.log(
+        `[${flowName}] Context:`,
+        JSON.stringify(lambdaContext, null, 2),
+      );
     }
 
     try {
       // Parse request body
-      const data = parseRequestBody<FlowInput<F>>(event);
+      const input = parseRequestBody<FlowInput<F>>(event);
 
-      // Run authorization policy if provided
-      if (opts.authPolicy) {
-        const authorized = await opts.authPolicy(event, context, data);
-        if (!authorized) {
-          return {
-            statusCode: 401,
-            headers: corsHeaders,
-            body: JSON.stringify({
-              success: false,
-              error: "Unauthorized",
-              code: "UNAUTHORIZED",
-              flowName,
-            } satisfies FlowErrorResponse),
-          };
-        }
-      }
-
-      // Build flow context
-      const flowContext: Record<string, unknown> = {
-        ...(opts.flowContext || {}),
+      // Build Lambda-specific context
+      const lambdaActionContext: LambdaActionContext = {
         lambda: {
           event: {
-            requestContext: event.requestContext,
-            headers: event.headers,
+            requestContext: event.requestContext as unknown as Record<
+              string,
+              unknown
+            >,
+            headers: event.headers as Record<string, string | undefined>,
             queryStringParameters: event.queryStringParameters,
             pathParameters: event.pathParameters,
           },
           context: {
-            functionName: context.functionName,
-            functionVersion: context.functionVersion,
-            invokedFunctionArn: context.invokedFunctionArn,
-            memoryLimitInMB: context.memoryLimitInMB,
-            awsRequestId: context.awsRequestId,
+            functionName: lambdaContext.functionName,
+            functionVersion: lambdaContext.functionVersion,
+            invokedFunctionArn: lambdaContext.invokedFunctionArn,
+            memoryLimitInMB: lambdaContext.memoryLimitInMB,
+            awsRequestId: lambdaContext.awsRequestId,
           },
         },
       };
 
-      if (opts.debug) {
-        console.log(`[${flowName}] Running flow with input:`, data);
+      // Run context provider if provided
+      let actionContext: ActionContext = lambdaActionContext;
+      if (opts.contextProvider) {
+        const requestData = toRequestData(event, input);
+        const providerContext = await opts.contextProvider(requestData);
+        // Merge provider context with Lambda context
+        actionContext = {
+          ...lambdaActionContext,
+          ...providerContext,
+        };
       }
 
-      // Execute the flow (with optional streaming)
+      if (opts.debug) {
+        console.log(`[${flowName}] Running flow with input:`, input);
+      }
+
+      // Execute the flow with context
+      let result: FlowOutput<F>;
       if (opts.enableStreaming) {
         // Streaming mode: collect chunks and return final result
-        const { stream, output } = flow.stream(data, { context: flowContext });
+        const { stream, output } = flow.stream(input, {
+          context: actionContext,
+        });
         const chunks: FlowStream<F>[] = [];
 
         for await (const chunk of stream) {
           chunks.push(chunk);
         }
 
-        const result = await output;
-
-        if (opts.debug) {
-          console.log(`[${flowName}] Flow completed successfully (streaming)`);
-        }
-
-        return {
-          statusCode: 200,
-          headers: corsHeaders,
-          body: JSON.stringify({
-            success: true,
-            data: result as FlowOutput<F>,
-            flowName,
-          } satisfies FlowResponse<FlowOutput<F>>),
-        };
+        result = (await output) as FlowOutput<F>;
+      } else {
+        // Non-streaming mode
+        const runResult = await flow.run(input, { context: actionContext });
+        result = runResult.result as FlowOutput<F>;
       }
-
-      // Non-streaming mode
-      const { result } = await flow.run(data, { context: flowContext });
 
       if (opts.debug) {
         console.log(`[${flowName}] Flow completed successfully`);
       }
 
-      // Return success response
+      // Return success response (callable protocol)
       return {
         statusCode: 200,
         headers: corsHeaders,
         body: JSON.stringify({
-          success: true,
-          data: result as FlowOutput<F>,
-          flowName,
+          result,
         } satisfies FlowResponse<FlowOutput<F>>),
       };
     } catch (error) {
@@ -505,26 +613,19 @@ export function onCallGenkit<F extends Flow>(
           statusCode: customError.statusCode,
           headers: corsHeaders,
           body: JSON.stringify({
-            success: false,
-            error: customError.message,
-            flowName,
+            error: {
+              status: "INTERNAL",
+              message: customError.message,
+            },
           } satisfies FlowErrorResponse),
         };
       }
 
-      // Default error response
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      const statusCode = isAuthError(error) ? 401 : 500;
-
+      // Use Genkit's callable error format (same as express handler)
       return {
-        statusCode,
+        statusCode: getHttpStatus(error),
         headers: corsHeaders,
-        body: JSON.stringify({
-          success: false,
-          error: errorMessage,
-          flowName,
-        } satisfies FlowErrorResponse),
+        body: JSON.stringify(getCallableJSON(error)),
       };
     }
   };
@@ -559,195 +660,257 @@ export function onCallGenkit<F extends Flow>(
   return callableFunction;
 }
 
+// ============================================================================
+// Context Provider Helpers
+// ============================================================================
+
 /**
- * Helper to check if an error is an authorization error
+ * Context with API key authentication
  */
-function isAuthError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    return (
-      message.includes("unauthorized") ||
-      message.includes("forbidden") ||
-      message.includes("authentication")
-    );
-  }
-  return false;
+export interface ApiKeyContext extends ActionContext {
+  auth: {
+    apiKey: string;
+  };
 }
 
 /**
- * Creates a simple authorization policy that always allows requests.
- * Useful for public endpoints.
+ * Context with bearer token authentication
  */
-export const allowAll = () => (): boolean => true;
+export interface BearerTokenContext extends ActionContext {
+  auth: {
+    token: string;
+  };
+}
 
 /**
- * Creates an authorization policy that requires a specific header.
+ * Creates a context provider that requires an API key in a specific header.
  *
  * @example
  * ```typescript
+ * // Require API key to match a specific value
  * export const handler = onCallGenkit(
- *   { authPolicy: requireHeader('X-API-Key', 'my-secret-key') },
+ *   { contextProvider: requireApiKey('X-API-Key', process.env.API_KEY!) },
  *   myFlow
  * );
- * ```
- */
-export const requireHeader =
-  (headerName: string, expectedValue?: string) =>
-  (event: APIGatewayProxyEvent | APIGatewayProxyEventV2): boolean => {
-    const headers = event.headers || {};
-    const value =
-      headers[headerName] ||
-      headers[headerName.toLowerCase()] ||
-      headers[headerName.toUpperCase()];
-
-    if (!value) {
-      return false;
-    }
-
-    if (expectedValue !== undefined) {
-      return value === expectedValue;
-    }
-
-    return true;
-  };
-
-/**
- * Creates an authorization policy that requires Bearer token authentication.
- * You provide a validation function that receives the token.
  *
- * @example
- * ```typescript
+ * // Or with a custom validation function
  * export const handler = onCallGenkit(
  *   {
- *     authPolicy: requireBearerToken(async (token) => {
- *       return await validateJWT(token);
+ *     contextProvider: requireApiKey('X-API-Key', async (key) => {
+ *       const valid = await validateApiKey(key);
+ *       if (!valid) {
+ *         throw new UserFacingError('PERMISSION_DENIED', 'Invalid API key');
+ *       }
  *     })
  *   },
  *   myFlow
  * );
  * ```
  */
-export const requireBearerToken =
-  (validateToken: (token: string) => boolean | Promise<boolean>) =>
-  async (
-    event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-  ): Promise<boolean> => {
-    const headers = event.headers || {};
-    const authHeader =
-      headers["Authorization"] ||
-      headers["authorization"] ||
-      headers["AUTHORIZATION"];
+export function requireApiKey(
+  headerName: string,
+  expectedValueOrValidator: string | ((apiKey: string) => void | Promise<void>),
+): ContextProvider<ApiKeyContext> {
+  const lowerHeaderName = headerName.toLowerCase();
+
+  return async (request: RequestData): Promise<ApiKeyContext> => {
+    const apiKey = request.headers[lowerHeaderName];
+
+    if (!apiKey) {
+      throw new UserFacingError(
+        "UNAUTHENTICATED",
+        `Missing required header: ${headerName}`,
+      );
+    }
+
+    if (typeof expectedValueOrValidator === "string") {
+      if (apiKey !== expectedValueOrValidator) {
+        throw new UserFacingError("PERMISSION_DENIED", "Invalid API key");
+      }
+    } else {
+      await expectedValueOrValidator(apiKey);
+    }
+
+    return {
+      auth: { apiKey },
+    };
+  };
+}
+
+/**
+ * Creates a context provider that requires Bearer token authentication.
+ *
+ * @example
+ * ```typescript
+ * // With custom token validation
+ * export const handler = onCallGenkit(
+ *   {
+ *     contextProvider: requireBearerToken(async (token) => {
+ *       const user = await verifyJWT(token);
+ *       return { auth: { user } };
+ *     })
+ *   },
+ *   myFlow
+ * );
+ * ```
+ */
+export function requireBearerToken<
+  C extends ActionContext = BearerTokenContext,
+>(validateToken: (token: string) => C | Promise<C>): ContextProvider<C> {
+  return async (request: RequestData): Promise<C> => {
+    const authHeader = request.headers["authorization"];
 
     if (!authHeader) {
-      return false;
+      throw new UserFacingError(
+        "UNAUTHENTICATED",
+        "Missing Authorization header",
+      );
     }
 
     const match = authHeader.match(/^Bearer\s+(.+)$/i);
     if (!match) {
-      return false;
+      throw new UserFacingError(
+        "UNAUTHENTICATED",
+        "Invalid Authorization header format. Expected: Bearer <token>",
+      );
     }
 
     const token = match[1];
-    return validateToken(token);
+    return await validateToken(token);
   };
+}
 
 /**
- * Creates an authorization policy that requires an API key in a header.
+ * Creates a context provider that requires a specific header to be present.
  *
  * @example
  * ```typescript
+ * // Require header to exist
  * export const handler = onCallGenkit(
- *   { authPolicy: requireApiKey('X-API-Key', process.env.API_KEY!) },
+ *   { contextProvider: requireHeader('X-Request-ID') },
+ *   myFlow
+ * );
+ *
+ * // Require header to have specific value
+ * export const handler = onCallGenkit(
+ *   { contextProvider: requireHeader('X-API-Version', '2.0') },
  *   myFlow
  * );
  * ```
  */
-export const requireApiKey =
-  (headerName: string, apiKey: string) =>
-  (event: APIGatewayProxyEvent | APIGatewayProxyEventV2): boolean => {
-    return requireHeader(headerName, apiKey)(event);
+export function requireHeader(
+  headerName: string,
+  expectedValue?: string,
+): ContextProvider<ActionContext> {
+  const lowerHeaderName = headerName.toLowerCase();
+
+  return async (request: RequestData): Promise<ActionContext> => {
+    const value = request.headers[lowerHeaderName];
+
+    if (!value) {
+      throw new UserFacingError(
+        "UNAUTHENTICATED",
+        `Missing required header: ${headerName}`,
+      );
+    }
+
+    if (expectedValue !== undefined && value !== expectedValue) {
+      throw new UserFacingError(
+        "PERMISSION_DENIED",
+        `Invalid value for header: ${headerName}`,
+      );
+    }
+
+    return {};
   };
+}
 
 /**
- * Combines multiple authorization policies with AND logic.
- * All policies must pass for the request to be authorized.
+ * Creates a context provider that always allows requests (no authentication).
+ * Useful for public endpoints.
+ *
+ * @example
+ * ```typescript
+ * export const handler = onCallGenkit(
+ *   { contextProvider: allowAll() },
+ *   myPublicFlow
+ * );
+ * ```
+ */
+export function allowAll(): ContextProvider<ActionContext> {
+  return async (): Promise<ActionContext> => ({});
+}
+
+/**
+ * Combines multiple context providers. All providers must succeed.
+ * The returned context is a merge of all provider contexts.
  *
  * @example
  * ```typescript
  * export const handler = onCallGenkit(
  *   {
- *     authPolicy: allOf(
- *       requireHeader('X-API-Key', 'secret'),
- *       requireBearerToken(validateToken)
+ *     contextProvider: allOf(
+ *       requireHeader('X-Request-ID'),
+ *       requireApiKey('X-API-Key', process.env.API_KEY!)
  *     )
  *   },
  *   myFlow
  * );
  * ```
  */
-export const allOf =
-  <T>(
-    ...policies: Array<
-      (
-        event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-        context: Context,
-        data: T,
-      ) => boolean | Promise<boolean>
-    >
-  ) =>
-  async (
-    event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-    context: Context,
-    data: T,
-  ): Promise<boolean> => {
-    for (const policy of policies) {
-      const result = await policy(event, context, data);
-      if (!result) {
-        return false;
-      }
+export function allOf<C extends ActionContext = ActionContext>(
+  ...providers: ContextProvider<ActionContext>[]
+): ContextProvider<C> {
+  return async (request: RequestData): Promise<C> => {
+    let mergedContext: ActionContext = {};
+
+    for (const provider of providers) {
+      const context = await provider(request);
+      mergedContext = { ...mergedContext, ...context };
     }
-    return true;
+
+    return mergedContext as C;
   };
+}
 
 /**
- * Combines multiple authorization policies with OR logic.
- * At least one policy must pass for the request to be authorized.
+ * Tries context providers in order, returning the first one that succeeds.
+ * If all providers fail, throws the error from the last provider.
  *
  * @example
  * ```typescript
+ * // Accept either API key or Bearer token
  * export const handler = onCallGenkit(
  *   {
- *     authPolicy: anyOf(
- *       requireApiKey('X-API-Key', 'secret'),
- *       requireBearerToken(validateToken)
+ *     contextProvider: anyOf(
+ *       requireApiKey('X-API-Key', process.env.API_KEY!),
+ *       requireBearerToken(async (token) => {
+ *         const user = await verifyJWT(token);
+ *         return { auth: { user } };
+ *       })
  *     )
  *   },
  *   myFlow
  * );
  * ```
  */
-export const anyOf =
-  <T>(
-    ...policies: Array<
-      (
-        event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-        context: Context,
-        data: T,
-      ) => boolean | Promise<boolean>
-    >
-  ) =>
-  async (
-    event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-    context: Context,
-    data: T,
-  ): Promise<boolean> => {
-    for (const policy of policies) {
-      const result = await policy(event, context, data);
-      if (result) {
-        return true;
+export function anyOf<C extends ActionContext = ActionContext>(
+  ...providers: ContextProvider<ActionContext>[]
+): ContextProvider<C> {
+  return async (request: RequestData): Promise<C> => {
+    let lastError: Error | undefined;
+
+    for (const provider of providers) {
+      try {
+        const context = await provider(request);
+        return context as C;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
-    return false;
+
+    throw lastError || new UserFacingError("UNAUTHENTICATED", "Unauthorized");
   };
+}
 
 export default onCallGenkit;

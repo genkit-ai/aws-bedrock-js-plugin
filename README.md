@@ -293,8 +293,8 @@ export const handler = onCallGenkit(
       origin: 'https://myapp.com',
       credentials: true,
     },
-    // Authorization policy
-    authPolicy: requireApiKey('X-API-Key', process.env.API_KEY!),
+    // Context provider for authentication
+    contextProvider: requireApiKey('X-API-Key', process.env.API_KEY!),
     // Debug logging
     debug: true,
     // Custom error handling
@@ -307,9 +307,9 @@ export const handler = onCallGenkit(
 );
 ```
 
-### Authentication Policies
+### Context Providers for Authentication
 
-The plugin provides built-in authentication helpers:
+The plugin provides built-in context provider helpers that follow Genkit's `ContextProvider` pattern (same as `@genkit-ai/express`):
 
 ```typescript
 import {
@@ -317,39 +317,39 @@ import {
   requireHeader,      // Require a specific header
   requireApiKey,      // Require API key in header
   requireBearerToken, // Require Bearer token with custom validation
-  allOf,              // Combine policies with AND logic
-  anyOf,              // Combine policies with OR logic
+  allOf,              // Combine providers with AND logic
+  anyOf,              // Combine providers with OR logic
 } from 'genkitx-aws-bedrock';
 
 // Public endpoint
 export const publicHandler = onCallGenkit(
-  { authPolicy: allowAll() },
+  { contextProvider: allowAll() },
   myFlow
 );
 
 // API key authentication
 export const apiKeyHandler = onCallGenkit(
-  { authPolicy: requireApiKey('X-API-Key', 'my-secret-key') },
+  { contextProvider: requireApiKey('X-API-Key', 'my-secret-key') },
   myFlow
 );
 
 // Bearer token with custom validation
 export const tokenHandler = onCallGenkit(
   {
-    authPolicy: requireBearerToken(async (token) => {
-      return await validateJWT(token);
+    contextProvider: requireBearerToken(async (token) => {
+      const user = await validateJWT(token);
+      return { auth: { user } };
     })
   },
   myFlow
 );
 
-// Combine multiple policies (all must pass)
+// Combine multiple providers (all must pass)
 export const strictHandler = onCallGenkit(
   {
-    authPolicy: allOf(
+    contextProvider: allOf(
       requireHeader('X-Client-ID'),
       requireBearerToken(async (token) => {
-        // Both sync and async validators are supported
         return await validateToken(token);
       })
     )
@@ -358,23 +358,36 @@ export const strictHandler = onCallGenkit(
 );
 ```
 
-### Response Format
+### Request & Response Format
+
+The handler follows the Genkit callable protocol (same as `@genkit-ai/express`).
+
+Request body (callable protocol):
+```json
+{
+  "data": { /* flow input */ }
+}
+```
+
+Direct input is also supported for convenience:
+```json
+{ /* flow input directly */ }
+```
 
 Successful response:
 ```json
 {
-  "success": true,
-  "data": { /* flow output */ },
-  "flowName": "myFlow"
+  "result": { /* flow output */ }
 }
 ```
 
 Error response:
 ```json
 {
-  "success": false,
-  "error": "Error message",
-  "flowName": "myFlow"
+  "error": {
+    "status": "UNAUTHENTICATED",
+    "message": "Missing auth token"
+  }
 }
 ```
 

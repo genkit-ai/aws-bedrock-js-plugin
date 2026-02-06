@@ -82,6 +82,12 @@ import {
   requireApiKey,
   allOf,
   anyOf,
+  type ContextProvider,
+  type RequestData,
+  type ActionContext,
+  type ApiKeyContext,
+  type BearerTokenContext,
+  type LambdaActionContext,
   type FlowRunOptions,
   type LambdaOptions,
   type CorsOptions,
@@ -153,6 +159,12 @@ export {
 };
 
 export type {
+  ContextProvider,
+  RequestData,
+  ActionContext,
+  ApiKeyContext,
+  BearerTokenContext,
+  LambdaActionContext,
   FlowRunOptions,
   LambdaOptions,
   CorsOptions,

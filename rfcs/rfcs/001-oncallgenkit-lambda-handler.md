@@ -5,7 +5,7 @@
 | **RFC #** | 001 |
 | **Author** | Xavier Portilla Edo |
 | **Created** | 2026-02-04 |
-| **Updated** | 2026-02-04 |
+| **Updated** | 2026-02-06 |
 
 ## Summary
 
@@ -50,11 +50,11 @@ The `onCallGenkit` function accepts a Genkit flow (action) and optionally config
 // Simple usage
 export const handler = onCallGenkit(myFlow);
 
-// With options
+// With options and ContextProvider for auth
 export const handler = onCallGenkit(
   {
     cors: { origin: 'https://myapp.com' },
-    authPolicy: requireApiKey('X-API-Key', 'secret'),
+    contextProvider: requireApiKey('X-API-Key', 'secret'),
   },
   myFlow
 );
@@ -86,19 +86,39 @@ These utility types use TypeScript's conditional type inference to extract the i
 
 #### LambdaOptions Interface
 
+The options interface uses Genkit's `ContextProvider` type, aligning with Express, Next.js, and other Genkit integrations:
+
 ```typescript
-interface LambdaOptions<T = unknown> {
+import type { ContextProvider, RequestData, ActionContext } from 'genkit/context';
+
+interface LambdaOptions<C extends ActionContext = ActionContext, T = unknown> {
   cors?: CorsOptions | boolean;
-  authPolicy?: (
-    event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-    context: Context,
-    data: T,
-  ) => boolean | Promise<boolean>;
+  contextProvider?: ContextProvider<C, T>;
   enableStreaming?: boolean;
   onError?: (error: Error) => { statusCode: number; message: string } | Promise<{ statusCode: number; message: string }>;
-  flowContext?: Record<string, unknown>;
   debug?: boolean;
 }
+```
+
+#### ContextProvider Pattern
+
+The `contextProvider` option follows the same pattern used in `@genkit-ai/express` and other Genkit HTTP adapters. A `ContextProvider` is a function that:
+
+1. Receives a `RequestData` object with headers, method, and parsed input
+2. Returns an `ActionContext` that will be available in the flow via `getContext()`
+3. Throws `UserFacingError` for authentication/authorization failures
+
+```typescript
+// RequestData provides a normalized view of the request
+interface RequestData<T = any> {
+  method: 'GET' | 'PUT' | 'POST' | 'DELETE' | 'OPTIONS' | 'QUERY';
+  headers: Record<string, string>;  // Lowercase headers
+  input: T;
+}
+
+// ContextProvider returns context for the flow
+type ContextProvider<C extends ActionContext, T> = 
+  (request: RequestData<T>) => C | Promise<C>;
 ```
 
 #### CorsOptions Interface
@@ -114,20 +134,23 @@ interface CorsOptions {
 }
 ```
 
-#### Response Types
+#### Response Types (Callable Protocol)
+
+Responses follow the Genkit callable protocol, matching the format used by `@genkit-ai/express` and other Genkit HTTP adapters:
 
 ```typescript
+// Success response
 interface FlowResponse<T> {
-  success: true;
-  data: T;
-  flowName: string;
+  result: T;
 }
 
+// Error response (matches getCallableJSON output from genkit/context)
 interface FlowErrorResponse {
-  success: false;
-  error: string;
-  code?: string;
-  flowName?: string;
+  error: {
+    status: string;
+    message: string;
+    details?: unknown;
+  };
 }
 ```
 
@@ -150,9 +173,16 @@ function parseRequestBody<T>(event: APIGatewayProxyEvent | APIGatewayProxyEventV
     ? Buffer.from(event.body, "base64").toString("utf-8")
     : event.body;
 
-  return JSON.parse(body) as T;
+  const parsed = JSON.parse(body);
+  // Support callable protocol: { data: <input> }
+  if (parsed && typeof parsed === "object" && "data" in parsed) {
+    return parsed.data as T;
+  }
+  return parsed as T;
 }
 ```
+
+This supports both the Genkit callable protocol format (`{ "data": { ... } }`) and direct input for convenience.
 
 #### 2. CORS Handling
 
@@ -174,28 +204,52 @@ if (event.httpMethod === "OPTIONS") {
 }
 ```
 
-#### 3. Authorization Policies
+#### 3. ContextProvider Helpers
 
-The plugin provides composable authorization helpers:
+The plugin provides composable context provider helpers that follow Genkit's patterns:
 
 | Helper | Description |
 |--------|-------------|
-| `allowAll()` | Always allows requests (public endpoints) |
-| `requireHeader(name, value?)` | Requires a specific header, optionally with a specific value |
-| `requireApiKey(header, key)` | Requires an API key in the specified header |
-| `requireBearerToken(validator)` | Requires Bearer token with custom validation |
-| `allOf(...policies)` | Combines policies with AND logic |
-| `anyOf(...policies)` | Combines policies with OR logic |
+| `allowAll()` | Returns empty context (public endpoints) |
+| `requireHeader(name, value?)` | Requires a header, throws `UserFacingError` if missing |
+| `requireApiKey(header, keyOrValidator)` | Requires API key, returns `ApiKeyContext` |
+| `requireBearerToken(validator)` | Requires Bearer token, validator returns context |
+| `allOf(...providers)` | Combines providers, merges returned contexts |
+| `anyOf(...providers)` | Tries providers in order, returns first success |
 
 Example composition:
 
 ```typescript
-const policy = allOf(
-  requireHeader('X-Client-ID'),
-  anyOf(
-    requireApiKey('X-API-Key', 'key1'),
-    requireBearerToken(validateJWT)
-  )
+import { UserFacingError } from 'genkit';
+import type { ContextProvider } from 'genkit/context';
+
+// Custom context provider with validation
+interface AuthContext {
+  auth: { user: { id: string; name: string } };
+}
+
+const authProvider: ContextProvider<AuthContext> = async (req) => {
+  const token = req.headers['authorization'];
+  if (!token) {
+    throw new UserFacingError('UNAUTHENTICATED', 'Missing auth token');
+  }
+  const user = await verifyToken(token);
+  return { auth: { user } };
+};
+
+// Using built-in helpers
+const combined = allOf(
+  requireHeader('X-Request-ID'),
+  requireApiKey('X-API-Key', process.env.API_KEY!)
+);
+
+// Accept multiple auth methods
+const flexibleAuth = anyOf(
+  requireApiKey('X-API-Key', process.env.API_KEY!),
+  requireBearerToken(async (token) => {
+    const user = await verifyJWT(token);
+    return { auth: { user } };
+  })
 );
 ```
 
@@ -228,12 +282,12 @@ This allows flows to access Lambda-specific information when needed.
 
 #### 5. Error Handling
 
-Errors are caught and formatted consistently:
+Errors are handled using Genkit's `getCallableJSON` and `getHttpStatus` utilities from `genkit/context`, matching the Express handler behavior:
 
-- Custom error handler support via `onError` option
-- Automatic detection of authentication errors (returns 401)
-- All other errors return 500
-- Error messages are included in the response
+- `UserFacingError` instances are converted to proper HTTP status codes via `getHttpStatus()`
+- Error responses follow the callable protocol format via `getCallableJSON()`
+- Custom error handler support via `onError` option (checked first if provided)
+- All errors produce consistent, client-friendly error objects
 
 #### 6. Testing Support
 
@@ -283,6 +337,7 @@ export { onCallGenkit, allowAll, requireHeader, requireBearerToken, requireApiKe
 
 // Types
 export type {
+  // Lambda types
   LambdaOptions,
   CorsOptions,
   FlowResponse,
@@ -291,6 +346,14 @@ export type {
   LambdaHandler,
   LambdaHandlerV2,
   CallableLambdaFunction,
+  LambdaActionContext,
+  // Re-exported from genkit/context for convenience
+  ContextProvider,
+  RequestData,
+  ActionContext,
+  // Context types for built-in helpers
+  ApiKeyContext,
+  BearerTokenContext,
 };
 ```
 
@@ -322,21 +385,22 @@ const greetFlow = ai.defineFlow(
 export const handler = onCallGenkit(greetFlow);
 ```
 
-### Protected Endpoint
+### Protected Endpoint with ContextProvider
 
 ```typescript
+import { UserFacingError } from 'genkit';
 import { onCallGenkit, requireBearerToken } from 'genkitx-aws-bedrock';
 import { verifyJWT } from './auth';
 
+// The context provider validates the token and returns user context
 export const handler = onCallGenkit(
   {
-    authPolicy: requireBearerToken(async (token) => {
-      try {
-        await verifyJWT(token);
-        return true;
-      } catch {
-        return false;
+    contextProvider: requireBearerToken(async (token) => {
+      const user = await verifyJWT(token);
+      if (!user) {
+        throw new UserFacingError('PERMISSION_DENIED', 'Invalid token');
       }
+      return { auth: { user } };
     }),
     cors: {
       origin: ['https://app.example.com', 'https://staging.example.com'],
@@ -367,9 +431,18 @@ export const handler = onCallGenkit(
 );
 ```
 
-### Accessing Lambda Context in Flow
+### Accessing Context in Flow
+
+Context from both the ContextProvider and Lambda-specific data is available:
 
 ```typescript
+import { getContext } from 'genkit';
+import type { LambdaActionContext } from 'genkitx-aws-bedrock';
+
+interface MyContext extends LambdaActionContext {
+  auth: { user: { id: string; name: string } };
+}
+
 const contextAwareFlow = ai.defineFlow(
   {
     name: 'contextAwareFlow',
@@ -377,10 +450,18 @@ const contextAwareFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (input, { context }) => {
-    const requestId = context?.lambda?.context?.awsRequestId;
-    const clientIp = context?.lambda?.event?.requestContext?.identity?.sourceIp;
+    // Access auth context from ContextProvider
+    const user = (context as MyContext).auth?.user;
+    console.log(`User: ${user?.name}`);
     
-    console.log(`Request ${requestId} from ${clientIp}`);
+    // Access Lambda-specific context
+    const requestId = context?.lambda?.context?.awsRequestId;
+    const headers = context?.lambda?.event?.headers;
+    
+    console.log(`Request ${requestId}`);
+    
+    // Or use getContext() anywhere in the call stack
+    const ctx = getContext<MyContext>();
     
     // ... flow logic
   }
