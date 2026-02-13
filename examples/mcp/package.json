@@ -20,7 +20,7 @@
     "@aws-sdk/credential-providers": "^3.940.0",
     "@genkit-ai/express": "^1.28.0",
     "@genkit-ai/mcp": "^1.28.0",
-    "@modelcontextprotocol/sdk": "^1.25.3",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
     "genkit": "^1.28.0",

@@ -401,8 +401,6 @@ function toRequestData<T>(
   };
 }
 
-
-
 /**
  * Creates a Lambda handler for a Genkit flow.
  *
@@ -665,16 +663,14 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
                 unknown
               >,
               headers: event.headers as Record<string, string | undefined>,
-              queryStringParameters:
-                event.queryStringParameters as Record<
-                  string,
-                  string | undefined
-                > | null,
-              pathParameters:
-                event.pathParameters as Record<
-                  string,
-                  string | undefined
-                > | null,
+              queryStringParameters: event.queryStringParameters as Record<
+                string,
+                string | undefined
+              > | null,
+              pathParameters: event.pathParameters as Record<
+                string,
+                string | undefined
+              > | null,
             },
             context: {
               functionName: lambdaCtx.functionName,
@@ -695,47 +691,35 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
 
         // Check if client wants SSE streaming
         const acceptHeader =
-          event.headers?.["accept"] ||
-          event.headers?.["Accept"] ||
-          "";
-        const clientWantsStreaming =
-          acceptHeader.includes("text/event-stream");
+          event.headers?.["accept"] || event.headers?.["Accept"] || "";
+        const clientWantsStreaming = acceptHeader.includes("text/event-stream");
 
         if (clientWantsStreaming) {
           // Real streaming: write SSE events incrementally
-          const httpStream = awslambda.HttpResponseStream.from(
-            responseStream,
-            {
-              statusCode: 200,
-              headers: {
-                ...corsHeaders,
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                Connection: "keep-alive",
-              },
+          const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+            statusCode: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
             },
-          );
+          });
 
           const { stream, output } = flow.stream(input, {
             context: actionContext,
           });
 
           for await (const chunk of stream) {
-            httpStream.write(
-              `data: ${JSON.stringify({ message: chunk })}\n\n`,
-            );
+            httpStream.write(`data: ${JSON.stringify({ message: chunk })}\n\n`);
           }
 
           const result = (await output) as FlowOutput<F>;
-          httpStream.write(
-            `data: ${JSON.stringify({ result })}\n\n`,
-          );
+          httpStream.write(`data: ${JSON.stringify({ result })}\n\n`);
           httpStream.end();
 
           if (opts.debug) {
-            console.log(
-              `[${flowName}] Streaming flow completed successfully`,
-            );
+            console.log(`[${flowName}] Streaming flow completed successfully`);
           }
         } else {
           // Non-streaming: buffered JSON response
@@ -744,13 +728,10 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
           });
           const result = runResult.result as FlowOutput<F>;
 
-          const httpStream = awslambda.HttpResponseStream.from(
-            responseStream,
-            {
-              statusCode: 200,
-              headers: corsHeaders,
-            },
-          );
+          const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+            statusCode: 200,
+            headers: corsHeaders,
+          });
           httpStream.write(JSON.stringify({ result }));
           httpStream.end();
         }
@@ -775,13 +756,10 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
           body = JSON.stringify(getCallableJSON(error));
         }
 
-        const httpStream = awslambda.HttpResponseStream.from(
-          responseStream,
-          {
-            statusCode,
-            headers: corsHeaders,
-          },
-        );
+        const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+          statusCode,
+          headers: corsHeaders,
+        });
         httpStream.write(body);
         httpStream.end();
       }
