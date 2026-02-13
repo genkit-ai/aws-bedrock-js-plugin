@@ -137,7 +137,7 @@ export const handler = onCallGenkit(myFlow);
 
 ### Real Response Streaming
 
-`onCallGenkit` also provides a `streamHandler` property for real incremental streaming via Lambda Function URLs.
+When `streaming: true` is set, `onCallGenkit` returns a streaming Lambda handler directly.
 This is compatible with `streamFlow` from `genkit/beta/client`.
 
 ```typescript
@@ -171,11 +171,11 @@ const myStreamingFlow = ai.defineFlow(
   }
 );
 
-// Use .streamHandler for Lambda Function URL deployment
+// streaming: true returns a StreamifyHandler directly
 export const streamingHandler = onCallGenkit(
-  { cors: { origin: '*' } },
+  { streaming: true, cors: { origin: '*' } },
   myStreamingFlow
-).streamHandler;
+);
 ```
 
 To deploy a streaming handler, configure serverless.yml with a Lambda Function URL:
@@ -333,7 +333,7 @@ The handler follows the Genkit callable protocol (same as `@genkit-ai/express`).
 
 ### Streaming Response (SSE)
 
-When using `streamHandler` with `Accept: text/event-stream`, the response is a stream of SSE events:
+When using `streaming: true` with `Accept: text/event-stream`, the response is a stream of SSE events:
 
 ```
 data: {"message": "chunk text"}

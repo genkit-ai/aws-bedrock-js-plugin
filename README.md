@@ -283,7 +283,7 @@ export const handler = onCallGenkit(myFlow);
 
 ### Response Streaming
 
-`onCallGenkit` also provides a `streamHandler` for real incremental streaming via [Lambda Function URLs](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html). This is compatible with `streamFlow` from `genkit/beta/client`.
+When `streaming: true` is set, `onCallGenkit` returns a streaming Lambda handler directly for real incremental streaming via [Lambda Function URLs](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html). This is compatible with `streamFlow` from `genkit/beta/client`.
 
 ```typescript
 const myStreamingFlow = ai.defineFlow(
@@ -308,11 +308,11 @@ const myStreamingFlow = ai.defineFlow(
   }
 );
 
-// Use .streamHandler for Lambda Function URL deployment
+// streaming: true returns a StreamifyHandler directly
 export const streamingHandler = onCallGenkit(
-  { cors: { origin: '*' } },
+  { streaming: true, cors: { origin: '*' } },
   myStreamingFlow
-).streamHandler;
+);
 ```
 
 Deploy with a Lambda Function URL in `serverless.yml`:
@@ -438,7 +438,7 @@ Error response:
 }
 ```
 
-Streaming response (SSE, via `streamHandler`):
+Streaming response (SSE, via `streaming: true`):
 ```
 data: {"message": "chunk text"}
 
