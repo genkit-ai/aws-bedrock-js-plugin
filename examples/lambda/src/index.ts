@@ -273,6 +273,7 @@ export const jokeHandler = onCallGenkit(jokeFlow);
  */
 export const jokeStreamHandler = onCallGenkit(
   {
+    streaming: true,
     cors: {
       origin: '*',
       methods: ['POST', 'OPTIONS'],
@@ -280,7 +281,7 @@ export const jokeStreamHandler = onCallGenkit(
     debug: process.env.NODE_ENV !== 'production',
   },
   jokeStreamingFlow
-).streamHandler;
+);
 
 /**
  * Protected Handler with API Key
