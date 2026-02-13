@@ -58,6 +58,13 @@ functions:
           method: options
           cors: true
 
+  # Joke Streaming - Real response streaming via Lambda Function URL
+  jokeStream:
+    handler: src/index.jokeStreamHandler
+    url:
+      invokeMode: RESPONSE_STREAM
+      cors: true
+
   # Protected Flow - With API Key Authentication
   protectedFlow:
     handler: src/index.protectedHandler

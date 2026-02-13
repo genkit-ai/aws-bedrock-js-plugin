@@ -1,0 +1,28 @@
+{
+  "name": "genkitx-client-example",
+  "version": "1.0.0",
+  "description": "Example Genkit client connecting to a Lambda deployed with onCallGenkit",
+  "main": "lib/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node lib/index.js",
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [
+    "genkit",
+    "client",
+    "aws",
+    "lambda",
+    "bedrock"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "genkit": "^1.28.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.6.2"
+  }
+}

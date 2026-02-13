@@ -21,6 +21,7 @@ import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
   Context as LambdaContext,
+  StreamifyHandler,
 } from "aws-lambda";
 import { type Flow, type z, type ActionContext, UserFacingError } from "genkit";
 import {
@@ -155,13 +156,6 @@ export interface LambdaOptions<
   contextProvider?: ContextProvider<C, T>;
 
   /**
-   * Whether to enable streaming responses using Lambda response streaming.
-   * Note: This requires Lambda function URL with response streaming enabled.
-   * @default false
-   */
-  enableStreaming?: boolean;
-
-  /**
    * Custom error handler for transforming errors before response.
    */
   onError?: (error: Error) =>
@@ -253,6 +247,17 @@ export interface CallableLambdaFunction<F extends Flow> extends LambdaHandler {
     stream: AsyncIterable<FlowStream<F>>;
     output: Promise<FlowOutput<F>>;
   };
+
+  /**
+   * Lambda handler that supports real response streaming via Lambda Function URLs.
+   * Use this handler when your Lambda is configured with InvokeMode: RESPONSE_STREAM.
+   * It uses `awslambda.streamifyResponse` to write SSE chunks incrementally,
+   * compatible with `streamFlow` from `genkit/beta/client`.
+   *
+   * For non-streaming requests (no `Accept: text/event-stream` header),
+   * it falls back to a buffered JSON response.
+   */
+  streamHandler: StreamifyHandler<APIGatewayProxyEventV2, void>;
 
   /**
    * Flow name
@@ -570,24 +575,8 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
       }
 
       // Execute the flow with context
-      let result: FlowOutput<F>;
-      if (opts.enableStreaming) {
-        // Streaming mode: collect chunks and return final result
-        const { stream, output } = flow.stream(input, {
-          context: actionContext,
-        });
-        const chunks: FlowStream<F>[] = [];
-
-        for await (const chunk of stream) {
-          chunks.push(chunk);
-        }
-
-        result = (await output) as FlowOutput<F>;
-      } else {
-        // Non-streaming mode
-        const runResult = await flow.run(input, { context: actionContext });
-        result = runResult.result as FlowOutput<F>;
-      }
+      const runResult = await flow.run(input, { context: actionContext });
+      const result = runResult.result as FlowOutput<F>;
 
       if (opts.debug) {
         console.log(`[${flowName}] Flow completed successfully`);
@@ -635,27 +624,169 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
   callableFunction.flow = flow;
   callableFunction.flowName = flowName;
 
-  callableFunction.run = async (
-    input: FlowInput<F>,
-    runOptions?: FlowRunOptions,
-  ): Promise<FlowOutput<F>> => {
-    const { result } = await flow.run(input, runOptions || { context: {} });
-    return result as FlowOutput<F>;
-  };
+  // Create the streaming handler using awslambda.streamifyResponse
+  // This enables real incremental streaming via Lambda Function URLs
+  callableFunction.streamHandler = awslambda.streamifyResponse(
+    async (
+      event: APIGatewayProxyEventV2,
+      responseStream: awslambda.HttpResponseStream,
+      lambdaCtx: LambdaContext,
+    ): Promise<void> => {
+      const requestOrigin = getRequestOrigin(event);
+      const corsHeaders = buildCorsHeaders(opts.cors, requestOrigin);
 
-  callableFunction.stream = (
-    input: FlowInput<F>,
-    streamOptions?: FlowRunOptions,
-  ) => {
-    const { stream, output } = flow.stream(
-      input,
-      streamOptions || { context: {} },
-    );
-    return {
-      stream: stream as AsyncIterable<FlowStream<F>>,
-      output: output as Promise<FlowOutput<F>>,
-    };
-  };
+      // Handle OPTIONS preflight
+      const method = event.requestContext?.http?.method || "POST";
+      if (method === "OPTIONS") {
+        const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+          statusCode: 204,
+          headers: corsHeaders,
+        });
+        httpStream.end();
+        return;
+      }
+
+      if (opts.debug) {
+        console.log(
+          `[${flowName}] Stream event:`,
+          JSON.stringify(event, null, 2),
+        );
+      }
+
+      try {
+        const input = parseRequestBody<FlowInput<F>>(event);
+
+        // Build context
+        const lambdaActionContext: LambdaActionContext = {
+          lambda: {
+            event: {
+              requestContext: event.requestContext as unknown as Record<
+                string,
+                unknown
+              >,
+              headers: event.headers as Record<string, string | undefined>,
+              queryStringParameters:
+                event.queryStringParameters as Record<
+                  string,
+                  string | undefined
+                > | null,
+              pathParameters:
+                event.pathParameters as Record<
+                  string,
+                  string | undefined
+                > | null,
+            },
+            context: {
+              functionName: lambdaCtx.functionName,
+              functionVersion: lambdaCtx.functionVersion,
+              invokedFunctionArn: lambdaCtx.invokedFunctionArn,
+              memoryLimitInMB: lambdaCtx.memoryLimitInMB,
+              awsRequestId: lambdaCtx.awsRequestId,
+            },
+          },
+        };
+
+        let actionContext: ActionContext = lambdaActionContext;
+        if (opts.contextProvider) {
+          const requestData = toRequestData(event, input);
+          const providerContext = await opts.contextProvider(requestData);
+          actionContext = { ...lambdaActionContext, ...providerContext };
+        }
+
+        // Check if client wants SSE streaming
+        const acceptHeader =
+          event.headers?.["accept"] ||
+          event.headers?.["Accept"] ||
+          "";
+        const clientWantsStreaming =
+          acceptHeader.includes("text/event-stream");
+
+        if (clientWantsStreaming) {
+          // Real streaming: write SSE events incrementally
+          const httpStream = awslambda.HttpResponseStream.from(
+            responseStream,
+            {
+              statusCode: 200,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+              },
+            },
+          );
+
+          const { stream, output } = flow.stream(input, {
+            context: actionContext,
+          });
+
+          for await (const chunk of stream) {
+            httpStream.write(
+              `data: ${JSON.stringify({ message: chunk })}\n\n`,
+            );
+          }
+
+          const result = (await output) as FlowOutput<F>;
+          httpStream.write(
+            `data: ${JSON.stringify({ result })}\n\n`,
+          );
+          httpStream.end();
+
+          if (opts.debug) {
+            console.log(
+              `[${flowName}] Streaming flow completed successfully`,
+            );
+          }
+        } else {
+          // Non-streaming: buffered JSON response
+          const runResult = await flow.run(input, {
+            context: actionContext,
+          });
+          const result = runResult.result as FlowOutput<F>;
+
+          const httpStream = awslambda.HttpResponseStream.from(
+            responseStream,
+            {
+              statusCode: 200,
+              headers: corsHeaders,
+            },
+          );
+          httpStream.write(JSON.stringify({ result }));
+          httpStream.end();
+        }
+      } catch (error) {
+        console.error(`[${flowName}] Stream error:`, error);
+
+        let statusCode = getHttpStatus(error);
+        let body: string;
+
+        if (opts.onError) {
+          const customError = await opts.onError(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+          statusCode = customError.statusCode;
+          body = JSON.stringify({
+            error: {
+              status: "INTERNAL",
+              message: customError.message,
+            },
+          });
+        } else {
+          body = JSON.stringify(getCallableJSON(error));
+        }
+
+        const httpStream = awslambda.HttpResponseStream.from(
+          responseStream,
+          {
+            statusCode,
+            headers: corsHeaders,
+          },
+        );
+        httpStream.write(body);
+        httpStream.end();
+      }
+    },
+  );
 
   return callableFunction;
 }

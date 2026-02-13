@@ -127,6 +127,44 @@ const jokeFlow = ai.defineFlow(
 );
 
 /**
+ * Streaming Joke Generator Flow
+ * Same as jokeFlow but streams text chunks as they arrive from the LLM.
+ * Uses streamSchema + sendChunk so that `flow.stream()` emits intermediate data.
+ */
+const jokeStreamingFlow = ai.defineFlow(
+  {
+    name: 'jokeStreamingFlow',
+    inputSchema: z.object({
+      subject: z.string().describe('The subject to tell a joke about'),
+    }),
+    outputSchema: z.object({
+      joke: z.string(),
+      type: z.string().optional(),
+    }),
+    streamSchema: z.string(),
+  },
+  async (input, sendChunk) => {
+    const { stream, response } = await ai.generateStream({
+      prompt: `Tell me a funny joke about ${input.subject}. Make it clever and appropriate for all ages.`,
+      output: {
+        schema: z.object({
+          joke: z.string(),
+          type: z.string().optional(),
+        }),
+      },
+    });
+
+    // Forward LLM text chunks to the flow stream
+    for await (const chunk of stream) {
+      sendChunk(chunk.text);
+    }
+
+    const result = await response;
+    return result.output || { joke: result.text };
+  }
+);
+
+/**
  * Protected Summary Flow
  * Demonstrates a flow with API key protection
  */
@@ -218,6 +256,33 @@ export const storyGeneratorHandler = onCallGenkit(
 export const jokeHandler = onCallGenkit(jokeFlow);
 
 /**
+ * Joke Streaming Handler
+ * 
+ * Uses the streamHandler property for real incremental streaming
+ * via Lambda Function URLs with InvokeMode: RESPONSE_STREAM.
+ * Compatible with `streamFlow` from `genkit/beta/client`.
+ * 
+ * @example
+ * POST /joke-stream
+ * Accept: text/event-stream
+ * {
+ *   "data": {
+ *     "subject": "programming"
+ *   }
+ * }
+ */
+export const jokeStreamHandler = onCallGenkit(
+  {
+    cors: {
+      origin: '*',
+      methods: ['POST', 'OPTIONS'],
+    },
+    debug: process.env.NODE_ENV !== 'production',
+  },
+  jokeStreamingFlow
+).streamHandler;
+
+/**
  * Protected Handler with API Key
  * 
  * Demonstrates using ContextProvider for authentication
@@ -256,4 +321,4 @@ export const protectedHandler = onCallGenkit(
 // Export flows for Genkit Dev UI
 // ============================================================================
 
-export { storyGeneratorFlow, jokeFlow, protectedSummaryFlow };
+export { storyGeneratorFlow, jokeFlow, jokeStreamingFlow, protectedSummaryFlow };

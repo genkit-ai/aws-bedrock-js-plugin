@@ -281,6 +281,53 @@ const myFlow = ai.defineFlow(
 export const handler = onCallGenkit(myFlow);
 ```
 
+### Response Streaming
+
+`onCallGenkit` also provides a `streamHandler` for real incremental streaming via [Lambda Function URLs](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html). This is compatible with `streamFlow` from `genkit/beta/client`.
+
+```typescript
+const myStreamingFlow = ai.defineFlow(
+  {
+    name: 'myStreamingFlow',
+    inputSchema: z.object({ subject: z.string() }),
+    outputSchema: z.object({ joke: z.string() }),
+    streamSchema: z.string(),
+  },
+  async (input, sendChunk) => {
+    const { stream, response } = await ai.generateStream({
+      prompt: `Tell me a joke about ${input.subject}`,
+      output: { schema: z.object({ joke: z.string() }) },
+    });
+
+    for await (const chunk of stream) {
+      sendChunk(chunk.text);
+    }
+
+    const result = await response;
+    return result.output || { joke: result.text };
+  }
+);
+
+// Use .streamHandler for Lambda Function URL deployment
+export const streamingHandler = onCallGenkit(
+  { cors: { origin: '*' } },
+  myStreamingFlow
+).streamHandler;
+```
+
+Deploy with a Lambda Function URL in `serverless.yml`:
+
+```yaml
+functions:
+  myStreamingFunction:
+    handler: src/index.streamingHandler
+    url:
+      invokeMode: RESPONSE_STREAM
+      cors: true
+```
+
+> **Note:** API Gateway buffers responses and does not support streaming. You must use a Lambda Function URL with `InvokeMode: RESPONSE_STREAM`.
+
 ### With Configuration Options
 
 ```typescript
@@ -391,7 +438,16 @@ Error response:
 }
 ```
 
-See the [Lambda example](./examples/lambda) for a complete working project with Serverless Framework deployment.
+Streaming response (SSE, via `streamHandler`):
+```
+data: {"message": "chunk text"}
+
+data: {"message": "more text"}
+
+data: {"result": {"joke": "full result"}}
+```
+
+See the [Lambda example](./examples/lambda) for a complete working project with Serverless Framework deployment, and the [Client example](./examples/client) for calling flows from a TypeScript client.
 
 ## Supported models
 

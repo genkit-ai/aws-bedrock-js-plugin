@@ -1,6 +1,6 @@
 # Genkit AWS Lambda Example
 
-An example AWS Lambda function powered by [Firebase Genkit](https://genkit.dev/) and the [AWS Bedrock plugin](https://github.com/xavidop/genkitx-aws-bedrock) using the `onCallGenkit` helper for easy deployment.
+An example AWS Lambda function powered by [Genkit](https://genkit.dev/) and the [AWS Bedrock plugin](https://github.com/xavidop/genkitx-aws-bedrock) using the `onCallGenkit` helper for easy deployment.
 
 ## Features
 
@@ -8,6 +8,7 @@ An example AWS Lambda function powered by [Firebase Genkit](https://genkit.dev/)
 - 🔐 Built-in authentication policies
 - 🌐 Automatic CORS handling
 - 📝 Structured error responses
+- 📡 Real response streaming via Lambda Function URLs
 - 🧪 Local development with Serverless Offline
 
 ## Prerequisites
@@ -78,6 +79,21 @@ curl -X POST http://localhost:3000/protected \
   }'
 ```
 
+**Streaming Joke Flow (requires deployment with Lambda Function URL):**
+
+> **Note:** Real response streaming only works when deployed to AWS with a Lambda Function URL (`InvokeMode: RESPONSE_STREAM`). It does not work locally with serverless-offline or through API Gateway, which buffer the entire response.
+
+```bash
+curl -X POST https://<your-function-url>.lambda-url.us-east-1.on.aws \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "data": {
+      "subject": "programming"
+    }
+  }'
+```
+
 ### Run with Genkit Dev UI
 
 For testing and debugging the Genkit flow with visual traces:
@@ -118,6 +134,62 @@ const myFlow = ai.defineFlow(
 // Simple handler - just wrap the flow
 export const handler = onCallGenkit(myFlow);
 ```
+
+### Real Response Streaming
+
+`onCallGenkit` also provides a `streamHandler` property for real incremental streaming via Lambda Function URLs.
+This is compatible with `streamFlow` from `genkit/beta/client`.
+
+```typescript
+import { genkit, z } from 'genkit';
+import { awsBedrock, amazonNovaProV1, onCallGenkit } from 'genkitx-aws-bedrock';
+
+const ai = genkit({
+  plugins: [awsBedrock()],
+  model: amazonNovaProV1(),
+});
+
+const myStreamingFlow = ai.defineFlow(
+  {
+    name: 'myStreamingFlow',
+    inputSchema: z.object({ subject: z.string() }),
+    outputSchema: z.object({ joke: z.string() }),
+    streamSchema: z.string(),
+  },
+  async (input, sendChunk) => {
+    const { stream, response } = await ai.generateStream({
+      prompt: `Tell me a joke about ${input.subject}`,
+      output: { schema: z.object({ joke: z.string() }) },
+    });
+
+    for await (const chunk of stream) {
+      sendChunk(chunk.text); // Sends SSE events incrementally
+    }
+
+    const result = await response;
+    return result.output || { joke: result.text };
+  }
+);
+
+// Use .streamHandler for Lambda Function URL deployment
+export const streamingHandler = onCallGenkit(
+  { cors: { origin: '*' } },
+  myStreamingFlow
+).streamHandler;
+```
+
+To deploy a streaming handler, configure serverless.yml with a Lambda Function URL:
+
+```yaml
+functions:
+  myStreamingFunction:
+    handler: src/index.streamingHandler
+    url:
+      invokeMode: RESPONSE_STREAM
+      cors: true
+```
+
+> **Important:** API Gateway buffers the entire response, so streaming does not work through API Gateway. You must use a [Lambda Function URL](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html) with `InvokeMode: RESPONSE_STREAM` for real incremental streaming.
 
 ### With Options
 
@@ -230,15 +302,21 @@ npm run remove
 
 ## Response Format
 
+The handler follows the Genkit callable protocol (same as `@genkit-ai/express`).
+
+### Request
+
+```json
+{
+  "data": { /* flow input */ }
+}
+```
+
 ### Success Response
 
 ```json
 {
-  "success": true,
-  "data": {
-    // Flow output data
-  },
-  "flowName": "storyGeneratorFlow"
+  "result": { /* flow output */ }
 }
 ```
 
@@ -246,10 +324,23 @@ npm run remove
 
 ```json
 {
-  "success": false,
-  "error": "Error message",
-  "flowName": "storyGeneratorFlow"
+  "error": {
+    "status": "UNAUTHENTICATED",
+    "message": "Missing auth token"
+  }
 }
+```
+
+### Streaming Response (SSE)
+
+When using `streamHandler` with `Accept: text/event-stream`, the response is a stream of SSE events:
+
+```
+data: {"message": "chunk text"}
+
+data: {"message": "more text"}
+
+data: {"result": {"joke": "full result"}}
 ```
 
 ## Project Structure
@@ -263,6 +354,17 @@ npm run remove
 ├── package.json          # Dependencies and scripts
 └── README.md             # This file
 ```
+
+## Deployment URLs
+
+After deployment, you will see two types of URLs:
+
+| Type | URL Pattern | Used For |
+|------|-------------|----------|
+| API Gateway | `*.execute-api.*.amazonaws.com/dev/*` | Standard request/response flows |
+| Lambda Function URL | `*.lambda-url.*.on.aws` | Streaming flows (`RESPONSE_STREAM`) |
+
+API Gateway endpoints support path routing (e.g., `/dev/joke`, `/dev/generate`), while Lambda Function URLs are a single endpoint per function.
 
 ## Configuration
 
@@ -296,7 +398,7 @@ provider:
 
 ## Learn More
 
-- [Firebase Genkit Documentation](https://genkit.dev/docs/)
+- [Genkit Documentation](https://genkit.dev/docs/)
 - [AWS Bedrock Plugin](https://github.com/xavidop/genkitx-aws-bedrock)
 - [Serverless Framework Documentation](https://www.serverless.com/framework/docs)
 - [AWS Bedrock](https://aws.amazon.com/bedrock/)
