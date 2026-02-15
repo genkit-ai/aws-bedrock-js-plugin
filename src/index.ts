@@ -1,3 +1,20 @@
+/**
+ * Copyright 2026 Xavier Portilla Edo
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { genkitPluginV2, type ResolvableAction } from "genkit/plugin";
 import {
   BedrockRuntimeClient,
@@ -57,6 +74,31 @@ import {
   SUPPORTED_EMBEDDING_MODELS,
 } from "./aws_bedrock_embedders.js";
 
+import {
+  onCallGenkit,
+  allowAll,
+  requireHeader,
+  requireBearerToken,
+  requireApiKey,
+  allOf,
+  anyOf,
+  type ContextProvider,
+  type RequestData,
+  type ActionContext,
+  type ApiKeyContext,
+  type BearerTokenContext,
+  type LambdaActionContext,
+  type FlowRunOptions,
+  type LambdaOptions,
+  type CorsOptions,
+  type FlowResponse,
+  type FlowErrorResponse,
+  type LambdaFlowResponse,
+  type LambdaHandler,
+  type LambdaHandlerV2,
+  type CallableLambdaFunction,
+} from "./aws_lambda.js";
+
 export {
   amazonNovaProV1,
   amazonNovaLiteV1,
@@ -103,6 +145,35 @@ export {
   amazonTitanEmbedTextG1V1,
   cohereEmbedEnglishV3,
   cohereEmbedMultilingualV3,
+};
+
+// AWS Lambda exports
+export {
+  onCallGenkit,
+  allowAll,
+  requireHeader,
+  requireBearerToken,
+  requireApiKey,
+  allOf,
+  anyOf,
+};
+
+export type {
+  ContextProvider,
+  RequestData,
+  ActionContext,
+  ApiKeyContext,
+  BearerTokenContext,
+  LambdaActionContext,
+  FlowRunOptions,
+  LambdaOptions,
+  CorsOptions,
+  FlowResponse,
+  FlowErrorResponse,
+  LambdaFlowResponse,
+  LambdaHandler,
+  LambdaHandlerV2,
+  CallableLambdaFunction,
 };
 
 export interface PluginOptions extends BedrockRuntimeClientConfig {
