@@ -30,7 +30,10 @@ dotenv.config();
 const ai = genkit({
   plugins: [
     awsBedrock({
-      customModels: ['openai.gpt-oss-20b-1:0'], // Register custom models here
+      // Register custom models here
+      customModels: [
+        'openai.gpt-oss-20b-1:0', 
+        'arn:aws:bedrock:us-east-1:682227818354:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0'],
     }),
   ],
   model: anthropicClaude35SonnetV2('us'),
@@ -107,6 +110,50 @@ export const embedderFlow = ai.defineFlow(
       embedding: result[0].embedding,
       dimensions: result[0].embedding.length,
     };
+  }
+);
+
+/**
+ * Structured output flow - a specialized flow for generating structured output from a Bedrock model.
+ * 
+ * Example usage:
+ * ```
+ * curl -X POST http://localhost:3400/structuredOutputFlow \
+ *   -H "Content-Type: application/json" \
+ *   -d '{
+ *     "data": "What is your name and age?"
+ *   }'
+ * ```
+ * 
+ * Example response:
+ * ```
+ * {
+ *   "name": "Claude",
+ *   "age": 2
+ * }
+ * ```
+ */
+export const structuredOutputFlow = ai.defineFlow(
+  {
+    name: 'structuredOutputFlow',
+    inputSchema: z.string(),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    const result = await ai.generate({
+      prompt: input,
+      model: 'aws-bedrock/arn:aws:bedrock:us-east-1:682227818354:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      output: {
+        format: 'json',
+        schema: z.object({
+          name: z.string(),
+          age: z.number(),
+        })
+      }
+    });
+
+    console.log('Result', result);
+    return result.text;
   }
 );
 
@@ -217,5 +264,5 @@ export const csvAnalysisFlow = ai.defineFlow(
 );
 
 startFlowServer({
-  flows: [jokeFlow, customModelFlow, streamingFlow, embedderFlow, documentAnalysisFlow, csvAnalysisFlow],
+  flows: [jokeFlow, customModelFlow, streamingFlow, embedderFlow, documentAnalysisFlow, csvAnalysisFlow, structuredOutputFlow],
 });

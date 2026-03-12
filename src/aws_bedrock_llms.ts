@@ -54,6 +54,7 @@ import {
   DocumentFormat,
   Tool,
   ToolUseBlockStart,
+  OutputFormatType
 } from "@aws-sdk/client-bedrock-runtime";
 
 export const amazonNovaProV1 = (
@@ -1193,6 +1194,19 @@ export function toAwsBedrockRequestBody(
         ? { tools: request.tools.map(toAwsBedrockTool) }
         : undefined,
     modelId: modelString,
+    outputConfig:
+      jsonMode && request.output?.schema
+        ? {
+            textFormat: {
+              type: OutputFormatType.JSON_SCHEMA,
+              structure: {
+                jsonSchema: {
+                  schema: JSON.stringify(request.output.schema),
+                },
+              },
+            },
+          }
+        : undefined,
     inferenceConfig: {
       maxTokens: request.config?.maxOutputTokens,
       temperature: request.config?.temperature,
