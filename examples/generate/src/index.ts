@@ -33,7 +33,7 @@ const ai = genkit({
       // Register custom models here
       customModels: [
         'openai.gpt-oss-20b-1:0', 
-        'arn:aws:bedrock:us-east-1:682227818354:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0'],
+        'us.anthropic.claude-sonnet-4-5-20250929-v1:0'],
     }),
   ],
   model: anthropicClaude35SonnetV2('us'),
@@ -142,7 +142,7 @@ export const structuredOutputFlow = ai.defineFlow(
   async (input) => {
     const result = await ai.generate({
       prompt: input,
-      model: 'aws-bedrock/arn:aws:bedrock:us-east-1:682227818354:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      model: 'aws-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0',
       output: {
         format: 'json',
         schema: z.object({
