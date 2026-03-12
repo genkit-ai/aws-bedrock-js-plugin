@@ -1257,6 +1257,7 @@ export function awsBedrockModel(
       {
         streamingRequested,
         sendChunk,
+        abortSignal
       }: {
         streamingRequested: boolean;
         sendChunk: (chunk: GenerateResponseChunkData) => void;
@@ -1267,7 +1268,9 @@ export function awsBedrockModel(
       const body = toAwsBedrockRequestBody(name, request, inferenceRegion);
       if (streamingRequested) {
         const command = new ConverseStreamCommand(body);
-        response = await client.send(command);
+        response = await client.send(command, {
+            abortSignal,
+        });
 
         // Accumulate text content from streaming response
         let accumulatedText = "";
@@ -1389,7 +1392,9 @@ export function awsBedrockModel(
         };
       } else {
         const command = new ConverseCommand(body);
-        const converseResponse = await client.send(command);
+        const converseResponse = await client.send(command, {
+            abortSignal
+        });
 
         return {
           message: fromAwsBedrockChoice(
