@@ -270,7 +270,6 @@ export interface CallableLambdaFunction<F extends Flow> extends LambdaHandler {
     output: Promise<FlowOutput<F>>;
   };
 
-
   /**
    * Flow name
    */
@@ -784,13 +783,10 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
             body = JSON.stringify(getCallableJSON(error));
           }
 
-          const httpStream = awslambda.HttpResponseStream.from(
-            responseStream,
-            {
-              statusCode,
-              headers: corsHeaders,
-            },
-          );
+          const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+            statusCode,
+            headers: corsHeaders,
+          });
           httpStream.write(body);
           httpStream.end();
         }
