@@ -57,6 +57,46 @@ import {
   OutputFormatType
 } from "@aws-sdk/client-bedrock-runtime";
 
+export const amazonNova2LiteV1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.amazon.nova-2-lite-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.amazon.nova-2-lite-v1:0`],
+      label: "Amazon - Nova 2 Lite V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const amazonNovaPremierV1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.amazon.nova-premier-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.amazon.nova-premier-v1:0`],
+      label: "Amazon - Nova Premier V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
 export const amazonNovaProV1 = (
   inferenceRegion: string = "us",
 ): ModelReference<typeof GenerationCommonConfigSchema> => {
@@ -157,6 +197,38 @@ export const amazonTitanTextG1LiteV1 = modelRef({
   configSchema: GenerationCommonConfigSchema,
 });
 
+export const googleGemma312BIt = modelRef({
+  name: "aws-bedrock/google.gemma-3-12b-it",
+  info: {
+    versions: ["google.gemma-3-12b-it"],
+    label: "Google - Gemma 3 12B IT",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
+export const cohereRerank35V1 = modelRef({
+  name: "aws-bedrock/cohere.rerank-v3-5:0",
+  info: {
+    versions: ["cohere.rerank-v3-5:0"],
+    label: "Cohere - Rerank 3.5",
+    supports: {
+      multiturn: false,
+      tools: false,
+      media: false,
+      systemRole: false,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
 export const cohereCommandRV1 = modelRef({
   name: "aws-bedrock/cohere.command-r-v1:0",
   info: {
@@ -220,6 +292,167 @@ export const cohereCommandV14 = modelRef({
   },
   configSchema: GenerationCommonConfigSchema,
 });
+
+
+export const anthropicClaudeSonnet4V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`],
+      label: "Anthropic - Claude Sonnet 4 V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeOpus4V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`],
+      label: "Anthropic - Claude Opus 4 (Legacy) V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: false,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeOpus41V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`],
+      label: "Anthropic - Claude Opus 4.1 V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeSonnet45V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`],
+      label: "Anthropic - Claude Sonnet 4.5 V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeHaiku45V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`],
+      label: "Anthropic - Claude Haiku 4.5 V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeOpus45V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`],
+      label: "Anthropic - Claude Opus 4.5 V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeOpus46V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-6-v1`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-opus-4-6-v1`],
+      label: "Anthropic - Claude Opus 4.6 V1",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const anthropicClaudeSonnet46V1 = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-6`,
+    info: {
+      versions: [`${inferenceRegion}.anthropic.claude-sonnet-4-6`],
+      label: "Anthropic - Claude Sonnet 4.6",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
 
 export const anthropicClaude35HaikuV1 = (
   inferenceRegion: string = "us",
@@ -415,6 +648,102 @@ export const anthropicClaudeInstantV1 = modelRef({
   configSchema: GenerationCommonConfigSchema,
 });
 
+export const mistralMagistralSmall2509 = modelRef({
+  name: "aws-bedrock/mistral.magistral-small-2509",
+  info: {
+    versions: ["mistral.magistral-small-2509"],
+    label: "Mistral - Magistral Small 2509",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
+export const mistralMinistral314BInstruct = modelRef({
+  name: "aws-bedrock/mistral.ministral-3-14b-instruct",
+  info: {
+    versions: ["mistral.ministral-3-14b-instruct"],
+    label: "Mistral - Ministral 3 14B Instruct",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
+export const mistralMinistral38BInstruct = modelRef({
+  name: "aws-bedrock/mistral.ministral-3-8b-instruct",
+  info: {
+    versions: ["mistral.ministral-3-8b-instruct"],
+    label: "Mistral - Ministral 3 8B Instruct",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
+export const mistralMinistral33BInstruct = modelRef({
+  name: "aws-bedrock/mistral.ministral-3-3b-instruct",
+  info: {
+    versions: ["mistral.ministral-3-3b-instruct"],
+    label: "Mistral - Ministral 3 3B Instruct",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
+export const mistralLarge3675BInstruct = modelRef({
+  name: "aws-bedrock/mistral.mistral-large-3-675b-instruct",
+  info: {
+    versions: ["mistral.mistral-large-3-675b-instruct"],
+    label: "Mistral - Large 3 (675B) Instruct",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
+export const pixtralLarge2502V1 = modelRef({
+  name: "aws-bedrock/mistral.pixtral-large-2502-v1:0",
+  info: {
+    versions: ["mistral.pixtral-large-2502-v1:0"],
+    label: "Mistral - Pixtral Large (25.02)",
+    supports: {
+      multiturn: true,
+      tools: true,
+      media: true,
+      systemRole: true,
+      output: ["text", "json"],
+    },
+  },
+  configSchema: GenerationCommonConfigSchema,
+});
+
 export const mistralLarge2402V1 = modelRef({
   name: "aws-bedrock/mistral.mistral-large-2402-v1:0",
   info: {
@@ -558,6 +887,46 @@ export const ai21Jurassic2UltraV1 = modelRef({
   },
   configSchema: GenerationCommonConfigSchema,
 });
+
+export const metaLlama4Maverick17BInstruct = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`],
+      label: "Meta - Llama 4 Maverick 17b Instruct",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
+
+export const metaLlama4Scout17BInstruct = (
+  inferenceRegion: string = "us",
+): ModelReference<typeof GenerationCommonConfigSchema> => {
+  return modelRef({
+    name: `aws-bedrock/${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`,
+    info: {
+      versions: [`${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`],
+      label: "Meta - Llama 4 Scout 17b Instruct",
+      supports: {
+        multiturn: true,
+        tools: true,
+        media: true,
+        systemRole: true,
+        output: ["text", "json"],
+      },
+    },
+    configSchema: GenerationCommonConfigSchema,
+  });
+};
 
 export const metaLlama3370BInstruct = (
   inferenceRegion: string = "us",
@@ -788,6 +1157,39 @@ export const SUPPORTED_AWS_BEDROCK_MODELS = (
       anthropicClaude3HaikuV1(inferenceRegion),
     [`${inferenceRegion}.anthropic.claude-3-sonnet-20240229-v1:0`]:
       anthropicClaude3SonnetV1(inferenceRegion),
+    // Added models
+    [`${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`]:
+      anthropicClaudeSonnet4V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`]:
+      anthropicClaudeOpus4V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`]:
+      anthropicClaudeOpus41V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`]:
+      anthropicClaudeSonnet45V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`]:
+      anthropicClaudeHaiku45V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`]:
+      anthropicClaudeOpus45V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-opus-4-6-v1`]:
+      anthropicClaudeOpus46V1(inferenceRegion),
+    [`${inferenceRegion}.anthropic.claude-sonnet-4-6`]:
+      anthropicClaudeSonnet46V1(inferenceRegion),
+    [`${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`]:
+      metaLlama4Maverick17BInstruct(inferenceRegion),
+    [`${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`]:
+      metaLlama4Scout17BInstruct(inferenceRegion),
+    [`${inferenceRegion}.amazon.nova-2-lite-v1:0`]:
+      amazonNova2LiteV1(inferenceRegion),
+    [`${inferenceRegion}.amazon.nova-premier-v1:0`]:
+      amazonNovaPremierV1(inferenceRegion),
+    "mistral.magistral-small-2509": mistralMagistralSmall2509,
+    "mistral.ministral-3-14b-instruct": mistralMinistral314BInstruct,
+    "mistral.ministral-3-8b-instruct": mistralMinistral38BInstruct,
+    "mistral.ministral-3-3b-instruct": mistralMinistral33BInstruct,
+    "mistral.mistral-large-3-675b-instruct": mistralLarge3675BInstruct,
+    "mistral.pixtral-large-2502-v1:0": pixtralLarge2502V1,
+    "google.gemma-3-12b-it": googleGemma312BIt,
+    "cohere.rerank-v3-5:0": cohereRerank35V1,
   };
 };
 

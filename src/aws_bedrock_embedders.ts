@@ -37,6 +37,19 @@ export type TextEmbeddingGeckoConfig = z.infer<
 
 export const TextEmbeddingInputSchema = z.string();
 
+export const amazonNova2MultimodalEmbeddingsV1 = createEmbedderRef({
+  name: "aws-bedrock/amazon.nova-2-multimodal-embeddings-v1:0",
+  configSchema: TextEmbeddingConfigSchema,
+  info: {
+    dimensions: 1024,
+    label: "Amazon - nova-2-multimodal-embeddings-v1:0",
+    supports: {
+      input: ["text", "image", "video"],
+      multilingual: true
+    },
+  },
+});
+
 export const amazonTitanEmbedTextV2 = createEmbedderRef({
   name: "aws-bedrock/amazon.titan-embed-text-v2:0",
   configSchema: TextEmbeddingConfigSchema,
@@ -73,6 +86,19 @@ export const amazonTitanEmbedTextG1V1 = createEmbedderRef({
   },
 });
 
+export const cohereEmbedV4 = createEmbedderRef({
+  name: "aws-bedrock/cohere.embed-v4:0",
+  configSchema: TextEmbeddingConfigSchema,
+  info: {
+    dimensions: 1024,
+    label: "Cohere - Embed v4",
+    supports: {
+      input: ["text", "image"],
+      multilingual: true
+    },
+  },
+});
+
 export const cohereEmbedEnglishV3 = createEmbedderRef({
   name: "aws-bedrock/cohere.embed-english-v3",
   configSchema: TextEmbeddingConfigSchema,
@@ -103,6 +129,8 @@ export const SUPPORTED_EMBEDDING_MODELS: Record<string, any> = {
   "amazon.titan-embed-text-v1": amazonTitanEmbedTextG1V1,
   "cohere.embed-english-v3": cohereEmbedEnglishV3,
   "cohere.embed-multilingual-v3": cohereEmbedMultilingualV3,
+  "cohere.embed-v4:0": cohereEmbedV4,
+  "amazon.nova-2-multimodal-embeddings-v1:0": amazonNova2MultimodalEmbeddingsV1,
 };
 
 export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
