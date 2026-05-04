@@ -733,6 +733,7 @@ export const mistralLarge3675BInstruct = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
