@@ -208,6 +208,7 @@ export const googleGemma312BIt = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
@@ -368,6 +369,7 @@ export const anthropicClaudeSonnet45V1 = (
         media: true,
         systemRole: true,
         output: ["text", "json"],
+        constrained: "all"
       },
     },
     configSchema: GenerationCommonConfigSchema,
@@ -388,6 +390,7 @@ export const anthropicClaudeHaiku45V1 = (
         media: true,
         systemRole: true,
         output: ["text", "json"],
+        constrained: "all"
       },
     },
     configSchema: GenerationCommonConfigSchema,
@@ -408,6 +411,7 @@ export const anthropicClaudeOpus45V1 = (
         media: true,
         systemRole: true,
         output: ["text", "json"],
+        constrained: "all"
       },
     },
     configSchema: GenerationCommonConfigSchema,
@@ -428,6 +432,7 @@ export const anthropicClaudeOpus46V1 = (
         media: true,
         systemRole: true,
         output: ["text", "json"],
+        constrained: "all"
       },
     },
     configSchema: GenerationCommonConfigSchema,
@@ -448,6 +453,7 @@ export const anthropicClaudeSonnet46V1 = (
         media: true,
         systemRole: true,
         output: ["text", "json"],
+        constrained: "all"
       },
     },
     configSchema: GenerationCommonConfigSchema,
@@ -659,6 +665,7 @@ export const mistralMagistralSmall2509 = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
@@ -675,6 +682,7 @@ export const mistralMinistral314BInstruct = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
@@ -691,6 +699,7 @@ export const mistralMinistral38BInstruct = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
@@ -707,6 +716,7 @@ export const mistralMinistral33BInstruct = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
@@ -723,6 +733,7 @@ export const mistralLarge3675BInstruct = modelRef({
       media: true,
       systemRole: true,
       output: ["text", "json"],
+      constrained: "all"
     },
   },
   configSchema: GenerationCommonConfigSchema,
