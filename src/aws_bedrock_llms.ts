@@ -1425,7 +1425,7 @@ export function toAwsBedrockMessages(
             role: role,
             content: [
               {
-                text: msg.text,
+                text: (msg.data !== undefined && !msg.text) ? JSON.stringify(msg.data) : msg.text,
               },
             ],
           });

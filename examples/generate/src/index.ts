@@ -21,9 +21,10 @@ import { genkit, z } from 'genkit';
 import { 
   anthropicClaude35SonnetV2, 
   awsBedrock,
-  amazonTitanEmbedTextV2 
+  amazonTitanEmbedTextV2,
+  anthropicClaudeSonnet45V1
 } from 'genkitx-bedrock';
-
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 dotenv.config();
 
@@ -31,9 +32,7 @@ const ai = genkit({
   plugins: [
     awsBedrock({
       // Register custom models here
-      customModels: [
-        'openai.gpt-oss-20b-1:0', 
-        'us.anthropic.claude-sonnet-4-5-20250929-v1:0'],
+      customModels: ['openai.gpt-oss-20b-1:0'],
     }),
   ],
   model: anthropicClaude35SonnetV2('us'),
@@ -133,6 +132,13 @@ export const embedderFlow = ai.defineFlow(
  * }
  * ```
  */
+// Required to convert the Zod schema to a JSON schema for the Bedrock model
+const outputSchema = z.object({
+    name: z.string().describe('The name of the person'),
+    age: z.number().describe('The age of the person'),
+});
+const structuredOutputSchema = zodToJsonSchema(outputSchema.strict());
+
 export const structuredOutputFlow = ai.defineFlow(
   {
     name: 'structuredOutputFlow',
@@ -142,20 +148,39 @@ export const structuredOutputFlow = ai.defineFlow(
   async (input) => {
     const result = await ai.generate({
       prompt: input,
-      model: 'aws-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      model: anthropicClaudeSonnet45V1('us'),
       output: {
         format: 'json',
-        schema: z.object({
-          name: z.string(),
-          age: z.number(),
-        })
+        jsonSchema: structuredOutputSchema
       }
     });
 
-    console.log('Result', result);
-    return result.text;
+    return result.text || JSON.stringify(result.output);
   }
 );
+
+export const structuredOutputFlowWithPreviousMessages = ai.defineFlow(
+    {
+      name: 'structuredOutputFlowWithPreviousMessages',
+      inputSchema: z.string(),
+      outputSchema: z.string(),
+    },
+    async (input) => {
+      const result = await ai.generate({
+        prompt: input,
+        model: anthropicClaudeSonnet45V1('us'),
+        messages: [
+            { role: 'user', content: [{ text: 'What is your name and age?' }]},
+            { role: 'model', content: [{ data: { name: 'John', age: 30 }}]}
+        ],
+        output: {
+          format: 'json',
+          jsonSchema: structuredOutputSchema
+        }
+      });
+      return result.text || JSON.stringify(result.output);
+    }
+  );
 
 /**
  * Document analysis flow - demonstrates how to send documents (PDF, CSV, etc.)
@@ -264,5 +289,5 @@ export const csvAnalysisFlow = ai.defineFlow(
 );
 
 startFlowServer({
-  flows: [jokeFlow, customModelFlow, streamingFlow, embedderFlow, documentAnalysisFlow, csvAnalysisFlow, structuredOutputFlow],
+  flows: [jokeFlow, customModelFlow, streamingFlow, embedderFlow, documentAnalysisFlow, csvAnalysisFlow, structuredOutputFlow, structuredOutputFlowWithPreviousMessages],
 });

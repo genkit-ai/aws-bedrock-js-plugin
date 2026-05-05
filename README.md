@@ -199,6 +199,41 @@ const result = ai.generate({
 console.log(result.then((res) => res.text));
 ```
 
+### Structured Output
+
+In order to use [Genkit structured output](https://genkit.dev/docs/js/models/#structured-output) with the Bedrock APIs, the schema sent to Bedrock needs to have `additionalProperties` set to false. If you have your schemas defined as `zod` schemas you can use `zodToJsonSchema` along with `schema.strict()` to get it in the correct format
+
+```typescript
+// ...configure Genkit (as shown above)...
+
+import { zodToJsonSchema } from 'zod-to-json-schema';
+
+const outputSchema = z.object({
+    joke: z.string()
+});
+const structuredOutputSchema = zodToJsonSchema(
+    outputSchema.strict()
+);
+
+// Results in an error:
+// output_config.format.schema: For 'object' type, 'additionalProperties: true' is not supported. Please set 'additionalProperties' to false
+const response = await ai.generate({
+  prompt: 'Tell me a joke.',
+  output: {
+    schema: outputSchema
+  }
+});
+
+// Works correctly!
+const response = await ai.generate({
+  prompt: 'Tell me a joke.',
+  output: {
+    format: 'json',
+    jsonSchema: structuredOutputSchema
+  }
+});
+```
+
 For more detailed examples and the explanation of other functionalities, refer to the [official Genkit documentation](https://genkit.dev/).
 
 ## Using Custom Models
