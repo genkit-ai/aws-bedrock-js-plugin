@@ -26,7 +26,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "genkit": "^1.28.0",
+    "genkit": "^1.34.0",
     "genkitx-bedrock": "file:../../"
   },
   "devDependencies": {
