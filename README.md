@@ -17,7 +17,6 @@
    <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/m/genkit-ai/aws-bedrock-js-plugin">
 </div>
 
-
 </br>
 
 **`genkitx-aws-bedrock`** is a community plugin for using AWS Bedrock APIs with
