@@ -23,7 +23,7 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
-    "genkit": "^1.40.0",
+    "genkit": "^1.40.1",
     "genkitx-bedrock": "file:../../",
     "tsx": "^4.19.3",
     "zod": "^3.25.76"
