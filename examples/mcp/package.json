@@ -26,7 +26,7 @@
     "genkit": "^1.40.1",
     "genkitx-bedrock": "file:../../",
     "tsx": "^4.19.3",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
