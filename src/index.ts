@@ -97,6 +97,11 @@ import {
   SUPPORTED_AWS_BEDROCK_MODELS,
 } from './aws_bedrock_llms.js';
 
+import {
+  awsBedrockImageModel,
+  imageFamily,
+  SUPPORTED_IMAGE_MODELS,
+} from './image.js';
 import { awsBedrockReranker, SUPPORTED_RERANKERS } from './rerank.js';
 
 import {
@@ -184,6 +189,16 @@ export {
   mistralSmall2402V1,
   pixtralLarge2502V1,
 };
+
+export {
+  amazonNovaCanvasV1,
+  amazonTitanImageGeneratorV2,
+  ImageGenerationConfigSchema,
+  stabilitySd35LargeV1,
+  stabilityStableImageCoreV1,
+  stabilityStableImageUltraV1,
+  type ImageGenerationConfig,
+} from './image.js';
 
 export {
   cohereRerank35,
@@ -322,8 +337,17 @@ export function awsBedrock(options?: PluginOptions) {
       // Register custom models if provided
       if (options?.customModels) {
         for (const name of options.customModels) {
-          actions.push(awsBedrockModel(name, client, inferenceRegion));
+          actions.push(
+            imageFamily(name)
+              ? awsBedrockImageModel(name, client)
+              : awsBedrockModel(name, client, inferenceRegion)
+          );
         }
+      }
+
+      // Register image models
+      for (const name of Object.keys(SUPPORTED_IMAGE_MODELS)) {
+        actions.push(awsBedrockImageModel(name, client));
       }
 
       // Register embedders
