@@ -248,10 +248,17 @@ async function mapLimit<T, R>(
 ): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
+  // Once one call fails the result is lost, so start no more calls.
+  let failed = false;
   const worker = async () => {
-    while (next < items.length) {
+    while (next < items.length && !failed) {
       const i = next++;
-      out[i] = await fn(items[i], i);
+      try {
+        out[i] = await fn(items[i], i);
+      } catch (err) {
+        failed = true;
+        throw err;
+      }
     }
   };
   await Promise.all(
@@ -372,8 +379,11 @@ async function embedCohere(
     images.push({ index: i, media });
   });
 
+  const batches: number[][] = [];
   for (let start = 0; start < texts.length; start += COHERE_BATCH_SIZE) {
-    const batch = texts.slice(start, start + COHERE_BATCH_SIZE);
+    batches.push(texts.slice(start, start + COHERE_BATCH_SIZE));
+  }
+  await mapLimit(batches, async (batch) => {
     const res = await invoke(client, modelId, {
       ...common,
       texts: batch.map((i) => docs[i].text),
@@ -388,7 +398,7 @@ async function embedCohere(
       });
     }
     batch.forEach((docIndex, j) => (out[docIndex] = vectors[j]));
-  }
+  });
 
   // Bedrock takes one image per Cohere request.
   await mapLimit(images, async ({ index, media }) => {

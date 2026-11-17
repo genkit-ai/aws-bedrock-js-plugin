@@ -237,6 +237,18 @@ describe('errors', () => {
     );
   });
 
+  it('starts no more requests after one fails', async () => {
+    const { client, sent } = fakeClient(() => {
+      throw Object.assign(new Error('nope'), { name: 'ValidationException' });
+    });
+    const input = Array.from({ length: 20 }, (_, i) => text(String(i)));
+    await assert.rejects(
+      awsBedrockEmbedder('amazon.titan-embed-text-v2:0', client)({ input })
+    );
+    // At most one request per worker was in flight when the first failed.
+    assert.ok(sent.length <= 8, `${sent.length} requests sent`);
+  });
+
   it('fails when Bedrock returns no vector', async () => {
     const { client } = fakeClient(() => jsonBody({}));
     await assert.rejects(
