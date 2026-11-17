@@ -15,164 +15,50 @@
  * limitations under the License.
  */
 
-import { genkitPluginV2, type ResolvableAction } from "genkit/plugin";
 import {
   BedrockRuntimeClient,
   BedrockRuntimeClientConfig,
-} from "@aws-sdk/client-bedrock-runtime";
-import { ModelAction } from "genkit/model";
-import { GenerationCommonConfigSchema } from "genkit";
+} from '@aws-sdk/client-bedrock-runtime';
+import { GenerationCommonConfigSchema } from 'genkit';
+import { ModelAction } from 'genkit/model';
+import { genkitPluginV2, type ResolvableAction } from 'genkit/plugin';
 
 import {
-  awsBedrockModel,
-  amazonNovaProV1,
-  amazonNovaLiteV1,
-  amazonNovaMicroV1,
-  amazonTitanTextG1PremierV1,
-  amazonTitanTextG1ExpressV1,
-  amazonTitanTextG1LiteV1,
-  amazonNova2LiteV1,
-  amazonNovaPremierV1,
-  cohereCommandRV1,
-  cohereCommandRPlusV1,
-  cohereCommandLightV14,
-  cohereCommandV14,
-  cohereRerank35V1,
-  mistralLarge2402V1,
-  mistralSmall2402V1,
-  mistral7BInstructV02,
-  mistral8x7BInstructV01,
-  mistralLarge3675BInstruct,
-  mistralMagistralSmall2509,
-  mistralMinistral314BInstruct,
-  mistralMinistral33BInstruct,
-  mistralMinistral38BInstruct,
-  pixtralLarge2502V1,
-  anthropicClaude35HaikuV1,
-  anthropicClaude37SonnetV1,
-  anthropicClaude35SonnetV2,
-  anthropicClaude3OpusV1,
-  anthropicClaude3HaikuV1,
-  anthropicClaude3SonnetV1,
-  anthropicClaude21V1,
-  anthropicClaude2V1,
-  anthropicClaudeInstantV1,
-  anthropicClaude35SonnetV1,
-  anthropicClaudeHaiku45V1,
-  anthropicClaudeOpus41V1,
-  anthropicClaudeOpus45V1,
-  anthropicClaudeOpus46V1,
-  anthropicClaudeOpus4V1,
-  anthropicClaudeSonnet45V1,
-  anthropicClaudeSonnet46V1,
-  anthropicClaudeSonnet4V1,
-  ai21Jamba15LargeV1,
-  ai21Jamba15MiniV1,
-  ai21JambaInstructV1,
-  ai21Jurassic2MidV1,
-  ai21Jurassic2UltraV1,
-  metaLlama3370BInstruct,
-  metaLlama3211BInstruct,
-  metaLlama321BInstruct,
-  metaLlama323BInstruct,
-  metaLlama3290BInstruct,
-  metaLlama3170BInstruct,
-  metaLlama318BInstruct,
-  metaLlama370BInstruct,
-  metaLlama38BInstruct,
-  metaLlama4Maverick17BInstruct,
-  metaLlama4Scout17BInstruct,
-  googleGemma312BIt,
-  SUPPORTED_AWS_BEDROCK_MODELS,
-} from "./aws_bedrock_llms.js";
-import {
-  awsBedrockEmbedder,
-  amazonTitanEmbedTextV2,
+  amazonNova2MultimodalEmbeddingsV1,
   amazonTitanEmbedMultimodalV2,
   amazonTitanEmbedTextG1V1,
-  amazonNova2MultimodalEmbeddingsV1,
+  amazonTitanEmbedTextV2,
+  awsBedrockEmbedder,
   cohereEmbedEnglishV3,
   cohereEmbedMultilingualV3,
   cohereEmbedV4,
   SUPPORTED_EMBEDDING_MODELS,
-} from "./aws_bedrock_embedders.js";
-
+} from './aws_bedrock_embedders.js';
 import {
-  onCallGenkit,
-  allowAll,
-  requireHeader,
-  requireBearerToken,
-  requireApiKey,
-  allOf,
-  anyOf,
-  type ContextProvider,
-  type RequestData,
-  type ActionContext,
-  type ApiKeyContext,
-  type BearerTokenContext,
-  type LambdaActionContext,
-  type FlowRunOptions,
-  type LambdaOptions,
-  type CorsOptions,
-  type FlowResponse,
-  type FlowErrorResponse,
-  type LambdaFlowResponse,
-  type LambdaHandler,
-  type LambdaHandlerV2,
-  type CallableLambdaFunction,
-} from "./aws_lambda.js";
-
-export {
-  amazonNovaProV1,
-  amazonNovaLiteV1,
-  amazonNovaMicroV1,
-  amazonNova2LiteV1,
-  amazonNovaPremierV1,
-  amazonTitanTextG1PremierV1,
-  amazonTitanTextG1ExpressV1,
-  amazonTitanTextG1LiteV1,
-  cohereCommandRV1,
-  cohereCommandRPlusV1,
-  cohereCommandLightV14,
-  cohereCommandV14,
-  cohereRerank35V1,
-  mistralLarge2402V1,
-  mistralSmall2402V1,
-  mistral7BInstructV02,
-  mistral8x7BInstructV01,
-  mistralLarge3675BInstruct,
-  mistralMagistralSmall2509,
-  mistralMinistral314BInstruct,
-  mistralMinistral33BInstruct,
-  mistralMinistral38BInstruct,
-  pixtralLarge2502V1,
   ai21Jamba15LargeV1,
   ai21Jamba15MiniV1,
   ai21JambaInstructV1,
   ai21Jurassic2MidV1,
   ai21Jurassic2UltraV1,
-  metaLlama3370BInstruct,
-  metaLlama3211BInstruct,
-  metaLlama321BInstruct,
-  metaLlama323BInstruct,
-  metaLlama3290BInstruct,
-  metaLlama3170BInstruct,
-  metaLlama318BInstruct,
-  metaLlama370BInstruct,
-  metaLlama38BInstruct,
-  metaLlama4Maverick17BInstruct,
-  metaLlama4Scout17BInstruct,
-  anthropicClaude35HaikuV1,
-  anthropicClaude37SonnetV1,
-  anthropicClaude35SonnetV2,
-  anthropicClaude3OpusV1,
-  anthropicClaude3HaikuV1,
-  anthropicClaude3SonnetV1,
+  amazonNova2LiteV1,
+  amazonNovaLiteV1,
+  amazonNovaMicroV1,
+  amazonNovaPremierV1,
+  amazonNovaProV1,
+  amazonTitanTextG1ExpressV1,
+  amazonTitanTextG1LiteV1,
+  amazonTitanTextG1PremierV1,
   anthropicClaude21V1,
   anthropicClaude2V1,
-  anthropicClaudeInstantV1,
+  anthropicClaude35HaikuV1,
   anthropicClaude35SonnetV1,
+  anthropicClaude35SonnetV2,
+  anthropicClaude37SonnetV1,
+  anthropicClaude3HaikuV1,
+  anthropicClaude3OpusV1,
+  anthropicClaude3SonnetV1,
   anthropicClaudeHaiku45V1,
+  anthropicClaudeInstantV1,
   anthropicClaudeOpus41V1,
   anthropicClaudeOpus45V1,
   anthropicClaudeOpus46V1,
@@ -180,14 +66,128 @@ export {
   anthropicClaudeSonnet45V1,
   anthropicClaudeSonnet46V1,
   anthropicClaudeSonnet4V1,
-  googleGemma312BIt
+  awsBedrockModel,
+  cohereCommandLightV14,
+  cohereCommandRPlusV1,
+  cohereCommandRV1,
+  cohereCommandV14,
+  cohereRerank35V1,
+  googleGemma312BIt,
+  metaLlama3170BInstruct,
+  metaLlama318BInstruct,
+  metaLlama3211BInstruct,
+  metaLlama321BInstruct,
+  metaLlama323BInstruct,
+  metaLlama3290BInstruct,
+  metaLlama3370BInstruct,
+  metaLlama370BInstruct,
+  metaLlama38BInstruct,
+  metaLlama4Maverick17BInstruct,
+  metaLlama4Scout17BInstruct,
+  mistral7BInstructV02,
+  mistral8x7BInstructV01,
+  mistralLarge2402V1,
+  mistralLarge3675BInstruct,
+  mistralMagistralSmall2509,
+  mistralMinistral314BInstruct,
+  mistralMinistral33BInstruct,
+  mistralMinistral38BInstruct,
+  mistralSmall2402V1,
+  pixtralLarge2502V1,
+  SUPPORTED_AWS_BEDROCK_MODELS,
+} from './aws_bedrock_llms.js';
+
+import {
+  allOf,
+  allowAll,
+  anyOf,
+  onCallGenkit,
+  requireApiKey,
+  requireBearerToken,
+  requireHeader,
+  type ActionContext,
+  type ApiKeyContext,
+  type BearerTokenContext,
+  type CallableLambdaFunction,
+  type ContextProvider,
+  type CorsOptions,
+  type FlowErrorResponse,
+  type FlowResponse,
+  type FlowRunOptions,
+  type LambdaActionContext,
+  type LambdaFlowResponse,
+  type LambdaHandler,
+  type LambdaHandlerV2,
+  type LambdaOptions,
+  type RequestData,
+} from './aws_lambda.js';
+
+export {
+  ai21Jamba15LargeV1,
+  ai21Jamba15MiniV1,
+  ai21JambaInstructV1,
+  ai21Jurassic2MidV1,
+  ai21Jurassic2UltraV1,
+  amazonNova2LiteV1,
+  amazonNovaLiteV1,
+  amazonNovaMicroV1,
+  amazonNovaPremierV1,
+  amazonNovaProV1,
+  amazonTitanTextG1ExpressV1,
+  amazonTitanTextG1LiteV1,
+  amazonTitanTextG1PremierV1,
+  anthropicClaude21V1,
+  anthropicClaude2V1,
+  anthropicClaude35HaikuV1,
+  anthropicClaude35SonnetV1,
+  anthropicClaude35SonnetV2,
+  anthropicClaude37SonnetV1,
+  anthropicClaude3HaikuV1,
+  anthropicClaude3OpusV1,
+  anthropicClaude3SonnetV1,
+  anthropicClaudeHaiku45V1,
+  anthropicClaudeInstantV1,
+  anthropicClaudeOpus41V1,
+  anthropicClaudeOpus45V1,
+  anthropicClaudeOpus46V1,
+  anthropicClaudeOpus4V1,
+  anthropicClaudeSonnet45V1,
+  anthropicClaudeSonnet46V1,
+  anthropicClaudeSonnet4V1,
+  cohereCommandLightV14,
+  cohereCommandRPlusV1,
+  cohereCommandRV1,
+  cohereCommandV14,
+  cohereRerank35V1,
+  googleGemma312BIt,
+  metaLlama3170BInstruct,
+  metaLlama318BInstruct,
+  metaLlama3211BInstruct,
+  metaLlama321BInstruct,
+  metaLlama323BInstruct,
+  metaLlama3290BInstruct,
+  metaLlama3370BInstruct,
+  metaLlama370BInstruct,
+  metaLlama38BInstruct,
+  metaLlama4Maverick17BInstruct,
+  metaLlama4Scout17BInstruct,
+  mistral7BInstructV02,
+  mistral8x7BInstructV01,
+  mistralLarge2402V1,
+  mistralLarge3675BInstruct,
+  mistralMagistralSmall2509,
+  mistralMinistral314BInstruct,
+  mistralMinistral33BInstruct,
+  mistralMinistral38BInstruct,
+  mistralSmall2402V1,
+  pixtralLarge2502V1,
 };
 
 export {
-  amazonTitanEmbedTextV2,
+  amazonNova2MultimodalEmbeddingsV1,
   amazonTitanEmbedMultimodalV2,
   amazonTitanEmbedTextG1V1,
-  amazonNova2MultimodalEmbeddingsV1,
+  amazonTitanEmbedTextV2,
   cohereEmbedEnglishV3,
   cohereEmbedMultilingualV3,
   cohereEmbedV4,
@@ -195,31 +195,31 @@ export {
 
 // AWS Lambda exports
 export {
-  onCallGenkit,
-  allowAll,
-  requireHeader,
-  requireBearerToken,
-  requireApiKey,
   allOf,
+  allowAll,
   anyOf,
+  onCallGenkit,
+  requireApiKey,
+  requireBearerToken,
+  requireHeader,
 };
 
 export type {
-  ContextProvider,
-  RequestData,
   ActionContext,
   ApiKeyContext,
   BearerTokenContext,
-  LambdaActionContext,
-  FlowRunOptions,
-  LambdaOptions,
+  CallableLambdaFunction,
+  ContextProvider,
   CorsOptions,
-  FlowResponse,
   FlowErrorResponse,
+  FlowResponse,
+  FlowRunOptions,
+  LambdaActionContext,
   LambdaFlowResponse,
   LambdaHandler,
   LambdaHandlerV2,
-  CallableLambdaFunction,
+  LambdaOptions,
+  RequestData,
 };
 
 export interface PluginOptions extends BedrockRuntimeClientConfig {
@@ -253,23 +253,23 @@ export interface PluginOptions extends BedrockRuntimeClientConfig {
  */
 export function defineAwsBedrockModel(
   name: string,
-  options?: PluginOptions,
+  options?: PluginOptions
 ): ModelAction<typeof GenerationCommonConfigSchema> {
   const client = new BedrockRuntimeClient(options || {});
 
   const region =
-    typeof options?.region === "string" ? options.region : undefined;
-  let inferenceRegion = "";
+    typeof options?.region === 'string' ? options.region : undefined;
+  let inferenceRegion = '';
   if (!region) {
-    inferenceRegion = "us"; // default to us
-  } else if (region.includes("us-gov")) {
-    inferenceRegion = "us-gov";
-  } else if (region.includes("us")) {
-    inferenceRegion = "us";
-  } else if (region.includes("eu-")) {
-    inferenceRegion = "eu";
-  } else if (region.includes("ap-")) {
-    inferenceRegion = "apac";
+    inferenceRegion = 'us'; // default to us
+  } else if (region.includes('us-gov')) {
+    inferenceRegion = 'us-gov';
+  } else if (region.includes('us')) {
+    inferenceRegion = 'us';
+  } else if (region.includes('eu-')) {
+    inferenceRegion = 'eu';
+  } else if (region.includes('ap-')) {
+    inferenceRegion = 'apac';
   }
 
   return awsBedrockModel(name, client, inferenceRegion);
@@ -279,28 +279,28 @@ export function awsBedrock(options?: PluginOptions) {
   const client = new BedrockRuntimeClient(options || {});
 
   const region =
-    typeof options?.region === "string" ? options.region : undefined;
-  let inferenceRegion = "";
+    typeof options?.region === 'string' ? options.region : undefined;
+  let inferenceRegion = '';
   if (!region) {
-    inferenceRegion = "us"; // default to us
-  } else if (region.includes("us-gov")) {
-    inferenceRegion = "us-gov";
-  } else if (region.includes("us")) {
-    inferenceRegion = "us";
-  } else if (region.includes("eu-")) {
-    inferenceRegion = "eu";
-  } else if (region.includes("ap-")) {
-    inferenceRegion = "apac";
+    inferenceRegion = 'us'; // default to us
+  } else if (region.includes('us-gov')) {
+    inferenceRegion = 'us-gov';
+  } else if (region.includes('us')) {
+    inferenceRegion = 'us';
+  } else if (region.includes('eu-')) {
+    inferenceRegion = 'eu';
+  } else if (region.includes('ap-')) {
+    inferenceRegion = 'apac';
   }
 
   return genkitPluginV2({
-    name: "aws-bedrock",
+    name: 'aws-bedrock',
     init: async () => {
       const actions: ResolvableAction[] = [];
 
       // Register models
       for (const name of Object.keys(
-        SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion),
+        SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)
       )) {
         actions.push(awsBedrockModel(name, client, inferenceRegion));
       }

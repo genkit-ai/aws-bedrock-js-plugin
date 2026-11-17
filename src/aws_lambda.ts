@@ -17,22 +17,22 @@
 
 import type {
   APIGatewayProxyEvent,
-  APIGatewayProxyResult,
   APIGatewayProxyEventV2,
+  APIGatewayProxyResult,
   APIGatewayProxyResultV2,
   Context as LambdaContext,
   StreamifyHandler,
-} from "aws-lambda";
-import { type Flow, type z, type ActionContext, UserFacingError } from "genkit";
+} from 'aws-lambda';
+import { UserFacingError, type ActionContext, type Flow, type z } from 'genkit';
 import {
   getCallableJSON,
   getHttpStatus,
   type ContextProvider,
   type RequestData,
-} from "genkit/context";
+} from 'genkit/context';
 
 // Re-export genkit context types for convenience
-export type { ContextProvider, RequestData, ActionContext };
+export type { ActionContext, ContextProvider, RequestData };
 
 /**
  * Type helpers to extract input/output types from Flow
@@ -224,7 +224,7 @@ export type LambdaFlowResponse<T> = FlowResponse<T> | FlowErrorResponse;
  */
 export type LambdaHandler = (
   event: APIGatewayProxyEvent,
-  context: LambdaContext,
+  context: LambdaContext
 ) => Promise<APIGatewayProxyResult>;
 
 /**
@@ -232,7 +232,7 @@ export type LambdaHandler = (
  */
 export type LambdaHandlerV2 = (
   event: APIGatewayProxyEventV2,
-  context: LambdaContext,
+  context: LambdaContext
 ) => Promise<APIGatewayProxyResultV2>;
 
 /**
@@ -256,7 +256,7 @@ export interface CallableLambdaFunction<F extends Flow> extends LambdaHandler {
    */
   run: (
     input: FlowInput<F>,
-    options?: FlowRunOptions,
+    options?: FlowRunOptions
   ) => Promise<FlowOutput<F>>;
 
   /**
@@ -264,12 +264,11 @@ export interface CallableLambdaFunction<F extends Flow> extends LambdaHandler {
    */
   stream: (
     input: FlowInput<F>,
-    options?: FlowRunOptions,
+    options?: FlowRunOptions
   ) => {
     stream: AsyncIterable<FlowStream<F>>;
     output: Promise<FlowOutput<F>>;
   };
-
 
   /**
    * Flow name
@@ -282,7 +281,7 @@ export interface CallableLambdaFunction<F extends Flow> extends LambdaHandler {
  */
 function buildCorsHeaders(
   corsOptions: CorsOptions | boolean | undefined,
-  requestOrigin?: string,
+  requestOrigin?: string
 ): Record<string, string> {
   if (corsOptions === false) {
     return {};
@@ -292,45 +291,45 @@ function buildCorsHeaders(
     corsOptions === true || corsOptions === undefined ? {} : corsOptions;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   };
 
   // Handle origin
-  const origin = opts.origin ?? "*";
+  const origin = opts.origin ?? '*';
   if (Array.isArray(origin)) {
     // Check if request origin is in allowed list
     if (requestOrigin && origin.includes(requestOrigin)) {
-      headers["Access-Control-Allow-Origin"] = requestOrigin;
+      headers['Access-Control-Allow-Origin'] = requestOrigin;
     }
     // If request origin is not in the allowlist, don't set the header
   } else {
-    headers["Access-Control-Allow-Origin"] = origin;
+    headers['Access-Control-Allow-Origin'] = origin;
   }
 
   // Handle methods
-  const methods = opts.methods ?? ["POST", "OPTIONS"];
-  headers["Access-Control-Allow-Methods"] = methods.join(", ");
+  const methods = opts.methods ?? ['POST', 'OPTIONS'];
+  headers['Access-Control-Allow-Methods'] = methods.join(', ');
 
   // Handle allowed headers
   const allowedHeaders = opts.allowedHeaders ?? [
-    "Content-Type",
-    "Authorization",
+    'Content-Type',
+    'Authorization',
   ];
-  headers["Access-Control-Allow-Headers"] = allowedHeaders.join(", ");
+  headers['Access-Control-Allow-Headers'] = allowedHeaders.join(', ');
 
   // Handle exposed headers
   if (opts.exposedHeaders && opts.exposedHeaders.length > 0) {
-    headers["Access-Control-Expose-Headers"] = opts.exposedHeaders.join(", ");
+    headers['Access-Control-Expose-Headers'] = opts.exposedHeaders.join(', ');
   }
 
   // Handle credentials
   if (opts.credentials) {
-    headers["Access-Control-Allow-Credentials"] = "true";
+    headers['Access-Control-Allow-Credentials'] = 'true';
   }
 
   // Handle max age
   const maxAge = opts.maxAge ?? 86400;
-  headers["Access-Control-Max-Age"] = String(maxAge);
+  headers['Access-Control-Max-Age'] = String(maxAge);
 
   return headers;
 }
@@ -341,27 +340,27 @@ function buildCorsHeaders(
  * as well as direct input format for convenience.
  */
 function parseRequestBody<T>(
-  event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
+  event: APIGatewayProxyEvent | APIGatewayProxyEventV2
 ): T {
   if (!event.body) {
     return {} as T;
   }
 
   const body = event.isBase64Encoded
-    ? Buffer.from(event.body, "base64").toString("utf-8")
+    ? Buffer.from(event.body, 'base64').toString('utf-8')
     : event.body;
 
   try {
     const parsed = JSON.parse(body);
     // Support callable protocol: { data: <input> }
-    if (parsed && typeof parsed === "object" && "data" in parsed) {
+    if (parsed && typeof parsed === 'object' && 'data' in parsed) {
       return parsed.data as T;
     }
     return parsed as T;
   } catch {
     throw new UserFacingError(
-      "INVALID_ARGUMENT",
-      "Invalid JSON in request body",
+      'INVALID_ARGUMENT',
+      'Invalid JSON in request body'
     );
   }
 }
@@ -370,17 +369,17 @@ function parseRequestBody<T>(
  * Gets the request origin from headers
  */
 function getRequestOrigin(
-  event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
+  event: APIGatewayProxyEvent | APIGatewayProxyEventV2
 ): string | undefined {
   const headers = event.headers || {};
-  return headers["origin"] || headers["Origin"];
+  return headers['origin'] || headers['Origin'];
 }
 
 /**
  * Converts Lambda event headers to lowercase record (as required by RequestData)
  */
 function normalizeHeaders(
-  headers: Record<string, string | undefined> | undefined,
+  headers: Record<string, string | undefined> | undefined
 ): Record<string, string> {
   const result: Record<string, string> = {};
   if (!headers) return result;
@@ -398,16 +397,16 @@ function normalizeHeaders(
  */
 function toRequestData<T>(
   event: APIGatewayProxyEvent | APIGatewayProxyEventV2,
-  input: T,
+  input: T
 ): RequestData<T> {
   // Determine HTTP method
   const method =
-    "httpMethod" in event
+    'httpMethod' in event
       ? event.httpMethod
-      : event.requestContext?.http?.method || "POST";
+      : event.requestContext?.http?.method || 'POST';
 
   return {
-    method: method as RequestData["method"],
+    method: method as RequestData['method'],
     headers: normalizeHeaders(event.headers),
     input,
   };
@@ -482,7 +481,7 @@ function toRequestData<T>(
  * @returns A Lambda handler function
  */
 export function onCallGenkit<F extends Flow>(
-  flow: F,
+  flow: F
 ): CallableLambdaFunction<F>;
 
 /**
@@ -494,12 +493,12 @@ export function onCallGenkit<F extends Flow>(
  */
 export function onCallGenkit<C extends ActionContext, F extends Flow>(
   opts: LambdaOptions<C, FlowInput<F>> & { streaming: true },
-  flow: F,
+  flow: F
 ): StreamifyHandler<APIGatewayProxyEventV2, void>;
 
 export function onCallGenkit<C extends ActionContext, F extends Flow>(
   opts: LambdaOptions<C, FlowInput<F>>,
-  flow: F,
+  flow: F
 ): CallableLambdaFunction<F>;
 
 /**
@@ -507,7 +506,7 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
  */
 export function onCallGenkit<C extends ActionContext, F extends Flow>(
   optsOrFlow: F | LambdaOptions<C, FlowInput<F>>,
-  flowArg?: F,
+  flowArg?: F
 ): CallableLambdaFunction<F> | StreamifyHandler<APIGatewayProxyEventV2, void> {
   let opts: LambdaOptions<C, FlowInput<F>>;
   let flow: F;
@@ -520,21 +519,21 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
     flow = flowArg as F;
   }
 
-  const flowName = flow.__action?.name || "unknown";
+  const flowName = flow.__action?.name || 'unknown';
 
   const handler: LambdaHandler = async (
     event: APIGatewayProxyEvent,
-    lambdaContext: LambdaContext,
+    lambdaContext: LambdaContext
   ): Promise<APIGatewayProxyResult> => {
     const requestOrigin = getRequestOrigin(event);
     const corsHeaders = buildCorsHeaders(opts.cors, requestOrigin);
 
     // Handle OPTIONS preflight request
-    if (event.httpMethod === "OPTIONS") {
+    if (event.httpMethod === 'OPTIONS') {
       return {
         statusCode: 204,
         headers: corsHeaders,
-        body: "",
+        body: '',
       };
     }
 
@@ -543,7 +542,7 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
       console.log(`[${flowName}] Event:`, JSON.stringify(event, null, 2));
       console.log(
         `[${flowName}] Context:`,
-        JSON.stringify(lambdaContext, null, 2),
+        JSON.stringify(lambdaContext, null, 2)
       );
     }
 
@@ -611,14 +610,14 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
       // Use custom error handler if provided
       if (opts.onError) {
         const customError = await opts.onError(
-          error instanceof Error ? error : new Error(String(error)),
+          error instanceof Error ? error : new Error(String(error))
         );
         return {
           statusCode: customError.statusCode,
           headers: corsHeaders,
           body: JSON.stringify({
             error: {
-              status: "INTERNAL",
+              status: 'INTERNAL',
               message: customError.message,
             },
           } satisfies FlowErrorResponse),
@@ -645,14 +644,14 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
       async (
         event: APIGatewayProxyEventV2,
         responseStream: awslambda.HttpResponseStream,
-        lambdaCtx: LambdaContext,
+        lambdaCtx: LambdaContext
       ): Promise<void> => {
         const requestOrigin = getRequestOrigin(event);
         const corsHeaders = buildCorsHeaders(opts.cors, requestOrigin);
 
         // Handle OPTIONS preflight
-        const method = event.requestContext?.http?.method || "POST";
-        if (method === "OPTIONS") {
+        const method = event.requestContext?.http?.method || 'POST';
+        if (method === 'OPTIONS') {
           const httpStream = awslambda.HttpResponseStream.from(responseStream, {
             statusCode: 204,
             headers: corsHeaders,
@@ -664,7 +663,7 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
         if (opts.debug) {
           console.log(
             `[${flowName}] Stream event:`,
-            JSON.stringify(event, null, 2),
+            JSON.stringify(event, null, 2)
           );
         }
 
@@ -708,9 +707,9 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
 
           // Check if client wants SSE streaming
           const acceptHeader =
-            event.headers?.["accept"] || event.headers?.["Accept"] || "";
+            event.headers?.['accept'] || event.headers?.['Accept'] || '';
           const clientWantsStreaming =
-            acceptHeader.includes("text/event-stream");
+            acceptHeader.includes('text/event-stream');
 
           if (clientWantsStreaming) {
             // Real streaming: write SSE events incrementally
@@ -720,11 +719,11 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
                 statusCode: 200,
                 headers: {
                   ...corsHeaders,
-                  "Content-Type": "text/event-stream",
-                  "Cache-Control": "no-cache",
-                  Connection: "keep-alive",
+                  'Content-Type': 'text/event-stream',
+                  'Cache-Control': 'no-cache',
+                  Connection: 'keep-alive',
                 },
-              },
+              }
             );
 
             const { stream, output } = flow.stream(input, {
@@ -733,7 +732,7 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
 
             for await (const chunk of stream) {
               httpStream.write(
-                `data: ${JSON.stringify({ message: chunk })}\n\n`,
+                `data: ${JSON.stringify({ message: chunk })}\n\n`
               );
             }
 
@@ -743,7 +742,7 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
 
             if (opts.debug) {
               console.log(
-                `[${flowName}] Streaming flow completed successfully`,
+                `[${flowName}] Streaming flow completed successfully`
               );
             }
           } else {
@@ -758,7 +757,7 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
               {
                 statusCode: 200,
                 headers: corsHeaders,
-              },
+              }
             );
             httpStream.write(JSON.stringify({ result }));
             httpStream.end();
@@ -771,12 +770,12 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
 
           if (opts.onError) {
             const customError = await opts.onError(
-              error instanceof Error ? error : new Error(String(error)),
+              error instanceof Error ? error : new Error(String(error))
             );
             statusCode = customError.statusCode;
             body = JSON.stringify({
               error: {
-                status: "INTERNAL",
+                status: 'INTERNAL',
                 message: customError.message,
               },
             });
@@ -784,17 +783,14 @@ export function onCallGenkit<C extends ActionContext, F extends Flow>(
             body = JSON.stringify(getCallableJSON(error));
           }
 
-          const httpStream = awslambda.HttpResponseStream.from(
-            responseStream,
-            {
-              statusCode,
-              headers: corsHeaders,
-            },
-          );
+          const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+            statusCode,
+            headers: corsHeaders,
+          });
           httpStream.write(body);
           httpStream.end();
         }
-      },
+      }
     );
   }
 
@@ -850,7 +846,7 @@ export interface BearerTokenContext extends ActionContext {
  */
 export function requireApiKey(
   headerName: string,
-  expectedValueOrValidator: string | ((apiKey: string) => void | Promise<void>),
+  expectedValueOrValidator: string | ((apiKey: string) => void | Promise<void>)
 ): ContextProvider<ApiKeyContext> {
   const lowerHeaderName = headerName.toLowerCase();
 
@@ -859,14 +855,14 @@ export function requireApiKey(
 
     if (!apiKey) {
       throw new UserFacingError(
-        "UNAUTHENTICATED",
-        `Missing required header: ${headerName}`,
+        'UNAUTHENTICATED',
+        `Missing required header: ${headerName}`
       );
     }
 
-    if (typeof expectedValueOrValidator === "string") {
+    if (typeof expectedValueOrValidator === 'string') {
       if (apiKey !== expectedValueOrValidator) {
-        throw new UserFacingError("PERMISSION_DENIED", "Invalid API key");
+        throw new UserFacingError('PERMISSION_DENIED', 'Invalid API key');
       }
     } else {
       await expectedValueOrValidator(apiKey);
@@ -899,20 +895,20 @@ export function requireBearerToken<
   C extends ActionContext = BearerTokenContext,
 >(validateToken: (token: string) => C | Promise<C>): ContextProvider<C> {
   return async (request: RequestData): Promise<C> => {
-    const authHeader = request.headers["authorization"];
+    const authHeader = request.headers['authorization'];
 
     if (!authHeader) {
       throw new UserFacingError(
-        "UNAUTHENTICATED",
-        "Missing Authorization header",
+        'UNAUTHENTICATED',
+        'Missing Authorization header'
       );
     }
 
     const match = authHeader.match(/^Bearer\s+(.+)$/i);
     if (!match) {
       throw new UserFacingError(
-        "UNAUTHENTICATED",
-        "Invalid Authorization header format. Expected: Bearer <token>",
+        'UNAUTHENTICATED',
+        'Invalid Authorization header format. Expected: Bearer <token>'
       );
     }
 
@@ -941,7 +937,7 @@ export function requireBearerToken<
  */
 export function requireHeader(
   headerName: string,
-  expectedValue?: string,
+  expectedValue?: string
 ): ContextProvider<ActionContext> {
   const lowerHeaderName = headerName.toLowerCase();
 
@@ -950,15 +946,15 @@ export function requireHeader(
 
     if (!value) {
       throw new UserFacingError(
-        "UNAUTHENTICATED",
-        `Missing required header: ${headerName}`,
+        'UNAUTHENTICATED',
+        `Missing required header: ${headerName}`
       );
     }
 
     if (expectedValue !== undefined && value !== expectedValue) {
       throw new UserFacingError(
-        "PERMISSION_DENIED",
-        `Invalid value for header: ${headerName}`,
+        'PERMISSION_DENIED',
+        `Invalid value for header: ${headerName}`
       );
     }
 
@@ -1050,7 +1046,7 @@ export function anyOf<C extends ActionContext = ActionContext>(
       }
     }
 
-    throw lastError || new UserFacingError("UNAUTHENTICATED", "Unauthorized");
+    throw lastError || new UserFacingError('UNAUTHENTICATED', 'Unauthorized');
   };
 }
 

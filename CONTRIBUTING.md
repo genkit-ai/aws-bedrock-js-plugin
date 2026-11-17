@@ -100,6 +100,14 @@ npm run build
 
 Or with the `npm: build` VSCode task. More about VSCode tasks [here](https://code.visualstudio.com/Docs/editor/tasks).
 
+### Formatting
+
+Code is formatted with Prettier, using the same settings as the [genkit repo](https://github.com/genkit-ai/genkit). Format before you commit; CI checks it:
+
+```
+npm run format
+```
+
 ## About this document
 
 These contribution guidelines are adapted by the [Embedded Artistry Templates](https://github.com/embeddedartistry/templates). Licensing information about the original information of this document can be found [here](https://github.com/embeddedartistry/templates/blob/master/LICENSE).

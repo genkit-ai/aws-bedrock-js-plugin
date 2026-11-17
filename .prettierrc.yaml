@@ -1,0 +1,7 @@
+# Same settings as the genkit repo (genkit-ai/genkit .prettierrc.yaml), so
+# this plugin reads like the plugins there.
+trailingComma: 'es5'
+semi: true
+singleQuote: true
+bracketSameLine: true
+plugins: ['prettier-plugin-organize-imports']

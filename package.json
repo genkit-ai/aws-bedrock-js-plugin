@@ -35,6 +35,7 @@
     "eslint": "^10.0.2",
     "globals": "^17.0.0",
     "prettier": "^3.3.3",
+    "prettier-plugin-organize-imports": "^4.3.0",
     "rimraf": "^6.0.1",
     "tsup": "^8.5.1",
     "typedoc": "^0.28.0",
@@ -64,7 +65,8 @@
     "build": "npm run build:clean && npm run check && npm run compile",
     "build:watch": "tsup-node --watch",
     "prepack": "npm run build",
-    "prettier": "prettier 'src/**/*.ts' --write",
+    "format": "prettier --write 'src/**/*.ts' tsup.config.ts",
+    "format:check": "prettier --check 'src/**/*.ts' tsup.config.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "docs": "typedoc ./src/index.ts --out ./docs --tsconfig ./tsconfig.json"
