@@ -183,6 +183,11 @@ export const googleGemma312BIt = modelRef({
   configSchema: AwsBedrockConfigSchema,
 });
 
+/**
+ * @deprecated Cohere Rerank is not a chat model and cannot be called through
+ * generate(). Use the `cohereRerank35` reranker with `ai.rerank()` instead.
+ * This model reference is no longer registered.
+ */
 export const cohereRerank35V1 = modelRef({
   name: 'aws-bedrock/cohere.rerank-v3-5:0',
   info: {
@@ -1187,7 +1192,6 @@ export const SUPPORTED_AWS_BEDROCK_MODELS = (
     'mistral.mistral-large-3-675b-instruct': mistralLarge3675BInstruct,
     'mistral.pixtral-large-2502-v1:0': pixtralLarge2502V1,
     'google.gemma-3-12b-it': googleGemma312BIt,
-    'cohere.rerank-v3-5:0': cohereRerank35V1,
   };
 };
 

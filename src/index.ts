@@ -97,6 +97,8 @@ import {
   SUPPORTED_AWS_BEDROCK_MODELS,
 } from './aws_bedrock_llms.js';
 
+import { awsBedrockReranker, SUPPORTED_RERANKERS } from './rerank.js';
+
 import {
   allOf,
   allowAll,
@@ -182,6 +184,13 @@ export {
   mistralSmall2402V1,
   pixtralLarge2502V1,
 };
+
+export {
+  amazonRerankV1,
+  cohereRerank35,
+  RerankConfigSchema,
+  type RerankConfig,
+} from './rerank.js';
 
 export {
   AwsBedrockConfigSchema,
@@ -321,6 +330,11 @@ export function awsBedrock(options?: PluginOptions) {
       // Register embedders
       for (const name of Object.keys(SUPPORTED_EMBEDDING_MODELS)) {
         actions.push(awsBedrockEmbedder(name, client));
+      }
+
+      // Register rerankers
+      for (const name of Object.keys(SUPPORTED_RERANKERS)) {
+        actions.push(awsBedrockReranker(name, client));
       }
 
       return actions;

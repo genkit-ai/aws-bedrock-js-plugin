@@ -354,6 +354,26 @@ const embeddings = await ai.embedMany({
 
 Images are passed as base64 data URLs in a document's media. A document with no text or media is rejected.
 
+### Reranking
+
+Cohere Rerank 3.5 and Amazon Rerank 1.0 are registered as Genkit rerankers. Documents come back most relevant first, with the score in `metadata.score`. Set `k` to keep only the top documents:
+
+```typescript
+import { cohereRerank35 } from 'genkitx-aws-bedrock';
+
+const ranked = await ai.rerank({
+  reranker: cohereRerank35,
+  query: 'What is the capital of France?',
+  documents: [
+    Document.fromText('Berlin is the capital of Germany.'),
+    Document.fromText('Paris is the capital of France.'),
+  ],
+  options: { k: 1 },
+});
+```
+
+The `cohereRerank35V1` model reference is deprecated: rerank models can't be called through `generate()`, so it is no longer registered as a model.
+
 ## Using Custom Models
 
 If you want to use a model that is not exported by this plugin, you can register it using the `customModels` option when initializing the plugin:
