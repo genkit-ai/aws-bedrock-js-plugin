@@ -17,17 +17,71 @@
 
 import {
   BedrockRuntimeClient,
-  ContentBlockDelta,
   ConverseStreamCommand,
   ConverseStreamCommandInput,
   ConverseStreamCommandOutput,
+  ConverseStreamMetadataEvent,
   ReasoningContentBlock,
-  ToolUseBlockStart,
 } from '@aws-sdk/client-bedrock-runtime';
-import { GenerateRequest, Part } from 'genkit';
+import { GenerateRequest, GenkitError, Part } from 'genkit';
 import { GenerateResponseChunkData, GenerateResponseData } from 'genkit/model';
-import { fromAwsBedrockReasoning } from './converse.js';
+import {
+  finalContent,
+  fromAwsBedrockReasoning,
+  fromAwsBedrockStopReason,
+  fromAwsBedrockUsage,
+} from './converse.js';
+import { toGenkitError } from './errors.js';
 import { AwsBedrockConfigSchema } from './types.js';
+
+/** A content block being reassembled from stream events. */
+type StreamBlock =
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; toolUseId: string; name: string; inputJson: string }
+  | { kind: 'reasoning'; block: ReasoningContentBlock };
+
+/**
+ * Exceptions ConverseStream can report as stream events rather than throw.
+ */
+const STREAM_EXCEPTIONS = [
+  'internalServerException',
+  'modelStreamErrorException',
+  'validationException',
+  'throttlingException',
+  'serviceUnavailableException',
+] as const;
+
+/**
+ * Parses a streamed tool call's accumulated input.
+ */
+function parseToolInput(block: { name: string; inputJson: string }): unknown {
+  if (!block.inputJson.trim()) return {};
+  try {
+    return JSON.parse(block.inputJson);
+  } catch (err) {
+    throw new GenkitError({
+      status: 'INTERNAL',
+      message: `AWS Bedrock streamed invalid JSON input for tool "${block.name}": ${(err as Error).message}`,
+    });
+  }
+}
+
+function toPart(block: StreamBlock): Part | undefined {
+  switch (block.kind) {
+    case 'text':
+      return { text: block.text };
+    case 'tool':
+      return {
+        toolRequest: {
+          name: block.name,
+          ref: block.toolUseId,
+          input: parseToolInput(block),
+        },
+      };
+    case 'reasoning':
+      return fromAwsBedrockReasoning(block.block);
+  }
+}
 
 /** Joins two byte arrays without copying through a JS array. */
 function concatBytes(a: Uint8Array | undefined, b: Uint8Array): Uint8Array {
@@ -39,9 +93,13 @@ function concatBytes(a: Uint8Array | undefined, b: Uint8Array): Uint8Array {
 }
 
 /**
- * Runs a ConverseStream request, forwarding text and reasoning deltas to
- * `sendChunk`, and
- * returns the reassembled response.
+ * Runs a ConverseStream request and reassembles the response.
+ *
+ * Content is rebuilt per contentBlockIndex. Text and reasoning deltas are
+ * sent as chunks as they arrive; a tool request is sent once its block stops
+ * and its input is complete. The final message holds the blocks in index
+ * order, the same shape the non-streaming path returns, with the finish
+ * reason from messageStop and the usage from the metadata event.
  */
 export async function converseStream(
   client: BedrockRuntimeClient,
@@ -55,74 +113,63 @@ export async function converseStream(
     abortSignal,
   });
 
-  // Accumulate text content from streaming response
-  let accumulatedText = '';
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let totalTokens = 0;
+  const blocks = new Map<number, StreamBlock>();
+  let stopReason: string | undefined;
+  let metadata: ConverseStreamMetadataEvent | undefined;
 
-  // Track tool use blocks for streaming
-  // Map from contentBlockIndex to tool use info
-  const toolUseBlocks: Map<
-    number,
-    { toolUseId: string; name: string; inputJson: string }
-  > = new Map();
-
-  // Reasoning blocks, by contentBlockIndex.
-  const reasoningBlocks: Map<number, ReasoningContentBlock> = new Map();
-  const reasoningBlock = (index: number) => {
-    let block = reasoningBlocks.get(index);
-    if (!block) {
-      block = { reasoningText: { text: '' } };
-      reasoningBlocks.set(index, block);
-    }
+  const reasoningBlock = (index: number): ReasoningContentBlock => {
+    const existing = blocks.get(index);
+    if (existing?.kind === 'reasoning') return existing.block;
+    const block: ReasoningContentBlock = { reasoningText: { text: '' } };
+    blocks.set(index, { kind: 'reasoning', block });
     return block;
   };
 
-  for await (const event of response.stream!) {
-    if (event.messageStop) {
-      sendChunk({
-        index: 0,
-        content: [],
-      });
+  for await (const event of response.stream ?? []) {
+    for (const key of STREAM_EXCEPTIONS) {
+      const exception = (event as unknown as Record<string, unknown>)[key];
+      if (exception) {
+        const name = key[0].toUpperCase() + key.slice(1);
+        const message = (exception as { message?: string }).message ?? name;
+        throw toGenkitError(Object.assign(new Error(message), { name }));
+      }
     }
 
-    // Handle tool use start events - these contain toolUseId and name
     if (event.contentBlockStart) {
-      const startBlock = event.contentBlockStart;
-      const blockIndex = startBlock.contentBlockIndex ?? 0;
-      if (
-        startBlock.start &&
-        'toolUse' in startBlock.start &&
-        startBlock.start.toolUse
-      ) {
-        const toolStart = startBlock.start.toolUse as ToolUseBlockStart;
-        toolUseBlocks.set(blockIndex, {
-          toolUseId: toolStart.toolUseId || '',
-          name: toolStart.name || '',
+      const index = event.contentBlockStart.contentBlockIndex ?? 0;
+      const toolUse = event.contentBlockStart.start?.toolUse;
+      if (toolUse) {
+        blocks.set(index, {
+          kind: 'tool',
+          toolUseId: toolUse.toolUseId ?? '',
+          name: toolUse.name ?? '',
           inputJson: '',
         });
       }
     }
 
     if (event.contentBlockDelta) {
-      const blockIndex = event.contentBlockDelta.contentBlockIndex ?? 0;
-      const delta = event.contentBlockDelta.delta as ContentBlockDelta;
+      const index = event.contentBlockDelta.contentBlockIndex ?? 0;
+      const delta = event.contentBlockDelta.delta;
 
-      // Handle text deltas
-      if (delta && 'text' in delta && delta.text) {
-        accumulatedText += delta.text;
-        sendChunk({
-          index: 0,
-          content: [{ text: delta.text }],
-        });
+      if (delta?.text) {
+        const block = blocks.get(index);
+        if (block?.kind === 'text') {
+          block.text += delta.text;
+        } else {
+          blocks.set(index, { kind: 'text', text: delta.text });
+        }
+        sendChunk({ index: 0, content: [{ text: delta.text }] });
       }
 
-      // Handle reasoning deltas: stream the text, keep the signature and
-      // any redacted bytes for the final message.
-      if (delta && 'reasoningContent' in delta && delta.reasoningContent) {
-        const r = delta.reasoningContent;
-        const block = reasoningBlock(blockIndex);
+      if (delta?.toolUse?.input) {
+        const block = blocks.get(index);
+        if (block?.kind === 'tool') block.inputJson += delta.toolUse.input;
+      }
+
+      const r = delta?.reasoningContent;
+      if (r) {
+        const block = reasoningBlock(index);
         if (r.text) {
           block.reasoningText!.text += r.text;
           sendChunk({ index: 0, content: [{ reasoning: r.text }] });
@@ -138,76 +185,37 @@ export async function converseStream(
           );
         }
       }
+    }
 
-      // Handle tool use input deltas - accumulate the JSON input
-      if (delta && 'toolUse' in delta && delta.toolUse) {
-        const toolUseDelta = delta.toolUse;
-        const existingBlock = toolUseBlocks.get(blockIndex);
-        if (existingBlock && toolUseDelta.input) {
-          existingBlock.inputJson += toolUseDelta.input;
-        }
+    if (event.contentBlockStop) {
+      const block = blocks.get(event.contentBlockStop.contentBlockIndex ?? 0);
+      if (block?.kind === 'tool') {
+        sendChunk({ index: 0, content: [toPart(block)!] });
       }
     }
 
-    // Capture usage metadata from the stream
-    if (event.metadata?.usage) {
-      inputTokens = event.metadata.usage.inputTokens || 0;
-      outputTokens = event.metadata.usage.outputTokens || 0;
-      totalTokens = event.metadata.usage.totalTokens || 0;
+    if (event.messageStop) {
+      stopReason = event.messageStop.stopReason;
+    }
+
+    if (event.metadata) {
+      metadata = event.metadata;
     }
   }
 
-  // Build tool request parts from accumulated tool use blocks
-  const toolRequestParts: Part[] = [];
-  for (const [, toolBlock] of toolUseBlocks) {
-    if (toolBlock.name && toolBlock.toolUseId) {
-      let parsedInput = {};
-      try {
-        if (toolBlock.inputJson) {
-          parsedInput = JSON.parse(toolBlock.inputJson);
-        }
-      } catch {
-        // If JSON parsing fails, use empty object
-        parsedInput = {};
-      }
-      toolRequestParts.push({
-        toolRequest: {
-          name: toolBlock.name,
-          ref: toolBlock.toolUseId,
-          input: parsedInput,
-        },
-      });
-    }
-  }
-
-  // Return accumulated content for streaming
-  const jsonMode = request.output?.format === 'json';
-
-  // If we have tool calls, return them; otherwise return text content
-  const content: Part[] =
-    toolRequestParts.length > 0
-      ? toolRequestParts
-      : [
-          jsonMode
-            ? { data: accumulatedText ? JSON.parse(accumulatedText) : {} }
-            : { text: accumulatedText },
-        ];
-
-  const reasoningParts = [...reasoningBlocks.entries()]
+  const content = [...blocks.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([, block]) => fromAwsBedrockReasoning(block))
+    .map(([, block]) => toPart(block))
     .filter((p): p is Part => p !== undefined);
 
+  const jsonMode =
+    request.output?.format === 'json' ||
+    request.output?.contentType === 'application/json';
+
   return {
-    message: {
-      role: 'model' as const,
-      content: [...reasoningParts, ...content],
-    },
-    usage: {
-      inputTokens,
-      outputTokens,
-      totalTokens,
-    },
-    custom: response,
+    finishReason: fromAwsBedrockStopReason(stopReason),
+    message: { role: 'model', content: finalContent(content, jsonMode) },
+    usage: fromAwsBedrockUsage(metadata?.usage),
+    custom: metadata ? { metrics: metadata.metrics } : {},
   };
 }
