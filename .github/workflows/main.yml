@@ -13,9 +13,9 @@ jobs:
         node-version: [20.x]
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v7
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -28,6 +28,6 @@ jobs:
         node --input-type=module -e "await import('./lib/index.mjs')"
     - name: SonarCloud Scan
       if: env.SONAR_TOKEN != null
-      uses: SonarSource/sonarcloud-github-action@v5
+      uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8 # v5.0.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
