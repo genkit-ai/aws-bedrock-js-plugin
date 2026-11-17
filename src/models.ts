@@ -35,10 +35,11 @@ function profilePrefix(inferenceRegion: string): string {
  * plugin uses in-region model IDs there.
  */
 export function inferenceProfileGeography(region: string): string {
-  if (region.startsWith('us-gov-')) return 'us-gov';
-  if (region.startsWith('us-')) return 'us';
-  if (region.startsWith('eu-')) return 'eu';
-  if (region.startsWith('ap-')) return 'apac';
+  const r = region.trim().toLowerCase();
+  if (r.startsWith('us-gov-')) return 'us-gov';
+  if (r.startsWith('us-')) return 'us';
+  if (r.startsWith('eu-')) return 'eu';
+  if (r.startsWith('ap-')) return 'apac';
   return '';
 }
 

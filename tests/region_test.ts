@@ -44,6 +44,7 @@ describe('inferenceProfileGeography', () => {
     assert.equal(inferenceProfileGeography('ap-southeast-2'), 'apac');
     assert.equal(inferenceProfileGeography('ca-central-1'), '');
     assert.equal(inferenceProfileGeography('sa-east-1'), '');
+    assert.equal(inferenceProfileGeography(' EU-West-1 '), 'eu');
   });
 });
 
