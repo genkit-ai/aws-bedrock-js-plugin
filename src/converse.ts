@@ -31,9 +31,11 @@ import {
   SystemContentBlock,
   TokenUsage,
   Tool,
+  ToolChoice,
+  ToolConfiguration,
   VideoFormat,
 } from '@aws-sdk/client-bedrock-runtime';
-import { GenerateRequest, MessageData, Part, Role } from 'genkit';
+import { GenerateRequest, GenkitError, MessageData, Part, Role } from 'genkit';
 import {
   GenerationUsage,
   ModelResponseData,
@@ -539,6 +541,50 @@ export function fromAwsBedrockChoice(
 const JSON_INSTRUCTION =
   'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.';
 
+/**
+ * Builds the Converse toolConfig from the request's tools and tool choice.
+ *
+ * Genkit's toolChoice maps onto Converse as auto -> auto and required -> any.
+ * config.toolChoice names one tool the model must call. Converse has no "none"
+ * choice, so toolChoice "none" leaves the tools out, unless the conversation
+ * already holds tool calls or results, which Converse only accepts alongside
+ * a toolConfig.
+ */
+function toAwsBedrockToolConfig(
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>,
+  modelSupportsTools: boolean,
+  messages: AwsMessge[]
+): ToolConfiguration | undefined {
+  const tools = request.tools ?? [];
+  if (!modelSupportsTools || tools.length === 0) return undefined;
+
+  const named = request.config?.toolChoice;
+  if (!named && request.toolChoice === 'none') {
+    const hasToolBlocks = messages.some((m) =>
+      m.content?.some((c) => c.toolUse || c.toolResult)
+    );
+    if (!hasToolBlocks) return undefined;
+    return { tools: tools.map(toAwsBedrockTool) };
+  }
+
+  let toolChoice: ToolChoice | undefined;
+  if (named) {
+    if (!tools.some((t) => t.name === named)) {
+      throw new GenkitError({
+        status: 'INVALID_ARGUMENT',
+        message: `toolChoice "${named}" does not match any of the request's tools (${tools.map((t) => t.name).join(', ')}).`,
+      });
+    }
+    toolChoice = { tool: { name: named } };
+  } else if (request.toolChoice === 'required') {
+    toolChoice = { any: {} };
+  } else if (request.toolChoice === 'auto') {
+    toolChoice = { auto: {} };
+  }
+
+  return { tools: tools.map(toAwsBedrockTool), toolChoice };
+}
+
 export function toAwsBedrockRequestBody(
   modelName: string,
   request: GenerateRequest<typeof AwsBedrockConfigSchema>,
@@ -586,12 +632,11 @@ export function toAwsBedrockRequestBody(
     messages: awsBedrockMessages,
     system:
       awsBedrockSystemMessage.length > 0 ? awsBedrockSystemMessage : undefined,
-    toolConfig:
-      request.tools &&
-      model.info.supports.tools === true &&
-      request.tools.length > 0
-        ? { tools: request.tools.map(toAwsBedrockTool) }
-        : undefined,
+    toolConfig: toAwsBedrockToolConfig(
+      request,
+      model.info.supports.tools === true,
+      awsBedrockMessages
+    ),
     modelId: modelString,
     outputConfig:
       jsonMode && request.output?.schema

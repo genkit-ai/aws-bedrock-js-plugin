@@ -66,6 +66,12 @@ export const AwsBedrockConfigSchema = GenerationCommonConfigSchema.extend({
     .enum(['default', 'priority', 'flex', 'reserved'])
     .optional()
     .describe('The Bedrock service tier to process the request with.'),
+  toolChoice: z
+    .string()
+    .optional()
+    .describe(
+      "The name of a tool the model must call. Overrides the request's toolChoice; it must be one of the request's tools."
+    ),
   requestMetadata: z
     .record(z.string(), z.string())
     .optional()
