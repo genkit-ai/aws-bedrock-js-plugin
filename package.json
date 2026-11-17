@@ -68,6 +68,7 @@
     "build:watch": "tsup-node --watch",
     "test": "tsx --test tests/*_test.ts",
     "test:file": "tsx --test",
+    "test:live": "tsx --test tests/live_test.ts",
     "prepack": "npm run build",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' tsup.config.ts",
     "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts' tsup.config.ts",

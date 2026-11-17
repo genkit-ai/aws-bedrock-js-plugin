@@ -110,6 +110,21 @@ npm test
 
 Tests live in `tests/`, named `*_test.ts`; run one file with `npm run test:file tests/converse_test.ts`. Please add or update tests with every bug fix or feature.
 
+### Running the Live Tests
+
+`tests/live_test.ts` calls AWS Bedrock with your usual AWS credentials and region. Each block runs only when you name a model for it, so `npm test` never calls AWS:
+
+```
+BEDROCK_LIVE_CLAUDE=us.anthropic.claude-haiku-4-5-20251001-v1:0 \
+BEDROCK_LIVE_NOVA=us.amazon.nova-lite-v1:0 \
+BEDROCK_LIVE_EMBEDDERS=amazon.titan-embed-text-v2:0,cohere.embed-v4:0,amazon.nova-2-multimodal-embeddings-v1:0 \
+BEDROCK_LIVE_RERANKER=cohere.rerank-v3-5:0 \
+BEDROCK_LIVE_IMAGE=amazon.nova-canvas-v1:0 \
+npm run test:live
+```
+
+Your account needs access to each model in the region you run in.
+
 ### Formatting
 
 Code is formatted with Prettier, using the same settings as the [genkit repo](https://github.com/genkit-ai/genkit). Format before you commit; CI checks it:
