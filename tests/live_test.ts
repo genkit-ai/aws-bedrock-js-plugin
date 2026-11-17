@@ -68,7 +68,8 @@ describe('live: Claude', { skip: !CLAUDE }, () => {
     });
     assert.match(res.text.toLowerCase(), /hello/);
     assert.equal(res.finishReason, 'stop');
-    assert.ok(res.usage.inputTokens! > 0);
+    assert.ok(res.usage?.inputTokens);
+    assert.ok(res.usage.inputTokens > 0);
   });
 
   it('streams text', async () => {
@@ -127,7 +128,8 @@ describe('live: Claude', { skip: !CLAUDE }, () => {
         schema: z.object({ city: z.string(), country: z.string() }),
       },
     });
-    assert.match(res.output!.city, /Paris/);
+    assert.ok(res.output);
+    assert.match(res.output.city, /Paris/);
   });
 });
 
@@ -186,6 +188,7 @@ describe('live: image generation', { skip: !IMAGE }, () => {
       model: awsBedrock.model(IMAGE ?? ''),
       prompt: 'A small red square on a white background',
     });
-    assert.match(res.media?.url ?? '', /^data:image\/png;base64,/);
+    assert.ok(res.media?.url, 'no image returned');
+    assert.match(res.media.url, /^data:image\/png;base64,/);
   });
 });
