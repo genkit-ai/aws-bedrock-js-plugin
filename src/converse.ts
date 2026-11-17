@@ -469,6 +469,9 @@ export function fromAwsBedrockChoice(
   };
 }
 
+const JSON_INSTRUCTION =
+  'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.';
+
 export function toAwsBedrockRequestBody(
   modelName: string,
   request: GenerateRequest<typeof GenerationCommonConfigSchema>,
@@ -484,24 +487,29 @@ export function toAwsBedrockRequestBody(
     },
   };
   const systemRole = model.info.supports?.systemRole === true;
-  const messages = systemRole
-    ? request.messages
-    : simulateSystemPrompt(request.messages);
-  const awsBedrockMessages = toAwsBedrockMessages(messages);
-
-  const awsBedrockSystemMessage = systemRole
-    ? getSystemMessage(request.messages) || []
-    : [];
-
   const jsonMode =
     request.output?.format === 'json' ||
     request.output?.contentType === 'application/json';
 
-  if (jsonMode && model.info.supports?.output?.includes('json') && systemRole) {
-    awsBedrockSystemMessage.push({
-      text: 'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.',
-    });
+  // The JSON instruction joins the system prompt, so models without a
+  // system role get it too, inside the simulated system prompt.
+  let requestMessages = request.messages;
+  if (jsonMode && model.info.supports?.output?.includes('json')) {
+    requestMessages = [
+      ...requestMessages,
+      { role: 'system', content: [{ text: JSON_INSTRUCTION }] },
+    ];
   }
+
+  const messages = systemRole
+    ? requestMessages
+    : simulateSystemPrompt(requestMessages);
+  const awsBedrockMessages = toAwsBedrockMessages(messages);
+
+  const awsBedrockSystemMessage = systemRole
+    ? getSystemMessage(requestMessages) || []
+    : [];
+
   const modelString = (request.config?.version ||
     model.version ||
     modelName) as string;

@@ -243,6 +243,16 @@ describe('system prompt', () => {
       { role: 'user', content: [{ text: 'hi' }] },
     ]);
   });
+
+  it('asks for JSON in the simulated system prompt too', () => {
+    const body = toAwsBedrockRequestBody(
+      'amazon.titan-text-express-v1',
+      { messages: [user], output: { format: 'json' } },
+      'us'
+    );
+    assert.equal(body.system, undefined);
+    assert.match(body.messages![0].content![1].text!, /JSON/);
+  });
 });
 
 describe('response conversion', () => {
