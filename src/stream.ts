@@ -29,6 +29,15 @@ import { GenerateResponseChunkData, GenerateResponseData } from 'genkit/model';
 import { fromAwsBedrockReasoning } from './converse.js';
 import { AwsBedrockConfigSchema } from './types.js';
 
+/** Joins two byte arrays without copying through a JS array. */
+function concatBytes(a: Uint8Array | undefined, b: Uint8Array): Uint8Array {
+  if (!a?.length) return b;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a);
+  out.set(b, a.length);
+  return out;
+}
+
 /**
  * Runs a ConverseStream request, forwarding text and reasoning deltas to
  * `sendChunk`, and
@@ -123,11 +132,10 @@ export async function converseStream(
             (block.reasoningText!.signature ?? '') + r.signature;
         }
         if (r.redactedContent?.length) {
-          const prev = block.redactedContent ?? new Uint8Array();
-          block.redactedContent = new Uint8Array([
-            ...prev,
-            ...r.redactedContent,
-          ]);
+          block.redactedContent = concatBytes(
+            block.redactedContent,
+            r.redactedContent
+          );
         }
       }
 

@@ -75,6 +75,57 @@ describe('reasoning', () => {
     ]);
   });
 
+  it('sends back signed reasoning with empty text', () => {
+    const [msg] = toAwsBedrockMessages([
+      {
+        role: 'model',
+        content: [
+          { reasoning: '', metadata: { bedrockReasoningSignature: 'sig' } },
+          { text: 'ok' },
+        ],
+      },
+    ]);
+    assert.deepEqual(msg.content?.[0], {
+      reasoningContent: { reasoningText: { text: '', signature: 'sig' } },
+    });
+  });
+
+  it('joins streamed redacted reasoning', async () => {
+    const { client } = fakeClient(() =>
+      streamOf([
+        {
+          contentBlockDelta: {
+            contentBlockIndex: 0,
+            delta: {
+              reasoningContent: { redactedContent: new Uint8Array([1]) },
+            },
+          },
+        },
+        {
+          contentBlockDelta: {
+            contentBlockIndex: 0,
+            delta: {
+              reasoningContent: { redactedContent: new Uint8Array([2, 3]) },
+            },
+          },
+        },
+        { messageStop: { stopReason: 'end_turn' } },
+      ])
+    );
+    const res = await awsBedrockModel(
+      'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      client,
+      'us'
+    )(
+      { messages: [{ role: 'user', content: [{ text: 'hi' }] }] },
+      { onChunk: () => {} }
+    );
+    assert.deepEqual(res.message?.content[0], {
+      reasoning: '',
+      metadata: { bedrockRedactedContent: 'AQID' },
+    });
+  });
+
   it("drops reasoning that didn't come from Bedrock", () => {
     const [msg] = toAwsBedrockMessages([
       {

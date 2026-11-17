@@ -357,7 +357,12 @@ function toAwsBedrockReasoning(part: Part): ContentBlock[] {
     ];
   }
   const signature = part.metadata?.[REASONING_SIGNATURE_KEY];
-  if (typeof signature === 'string' && signature && part.reasoning) {
+  // Claude can sign reasoning with empty text; it still has to go back.
+  if (
+    typeof signature === 'string' &&
+    signature &&
+    typeof part.reasoning === 'string'
+  ) {
     return [
       {
         reasoningContent: {
