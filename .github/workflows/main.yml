@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -28,6 +31,6 @@ jobs:
         node --input-type=module -e "await import('./lib/index.mjs')"
     - name: SonarCloud Scan
       if: env.SONAR_TOKEN != null
-      uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8 # v5.0.0
+      uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
