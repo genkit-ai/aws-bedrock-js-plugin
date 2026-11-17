@@ -21,14 +21,17 @@ import {
   ConverseStreamCommand,
   ConverseStreamCommandInput,
   ConverseStreamCommandOutput,
+  ReasoningContentBlock,
   ToolUseBlockStart,
 } from '@aws-sdk/client-bedrock-runtime';
 import { GenerateRequest, Part } from 'genkit';
 import { GenerateResponseChunkData, GenerateResponseData } from 'genkit/model';
+import { fromAwsBedrockReasoning } from './converse.js';
 import { AwsBedrockConfigSchema } from './types.js';
 
 /**
- * Runs a ConverseStream request, forwarding text deltas to `sendChunk`, and
+ * Runs a ConverseStream request, forwarding text and reasoning deltas to
+ * `sendChunk`, and
  * returns the reassembled response.
  */
 export async function converseStream(
@@ -55,6 +58,17 @@ export async function converseStream(
     number,
     { toolUseId: string; name: string; inputJson: string }
   > = new Map();
+
+  // Reasoning blocks, by contentBlockIndex.
+  const reasoningBlocks: Map<number, ReasoningContentBlock> = new Map();
+  const reasoningBlock = (index: number) => {
+    let block = reasoningBlocks.get(index);
+    if (!block) {
+      block = { reasoningText: { text: '' } };
+      reasoningBlocks.set(index, block);
+    }
+    return block;
+  };
 
   for await (const event of response.stream!) {
     if (event.messageStop) {
@@ -93,6 +107,28 @@ export async function converseStream(
           index: 0,
           content: [{ text: delta.text }],
         });
+      }
+
+      // Handle reasoning deltas: stream the text, keep the signature and
+      // any redacted bytes for the final message.
+      if (delta && 'reasoningContent' in delta && delta.reasoningContent) {
+        const r = delta.reasoningContent;
+        const block = reasoningBlock(blockIndex);
+        if (r.text) {
+          block.reasoningText!.text += r.text;
+          sendChunk({ index: 0, content: [{ reasoning: r.text }] });
+        }
+        if (r.signature) {
+          block.reasoningText!.signature =
+            (block.reasoningText!.signature ?? '') + r.signature;
+        }
+        if (r.redactedContent?.length) {
+          const prev = block.redactedContent ?? new Uint8Array();
+          block.redactedContent = new Uint8Array([
+            ...prev,
+            ...r.redactedContent,
+          ]);
+        }
       }
 
       // Handle tool use input deltas - accumulate the JSON input
@@ -149,10 +185,15 @@ export async function converseStream(
             : { text: accumulatedText },
         ];
 
+  const reasoningParts = [...reasoningBlocks.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, block]) => fromAwsBedrockReasoning(block))
+    .filter((p): p is Part => p !== undefined);
+
   return {
     message: {
       role: 'model' as const,
-      content,
+      content: [...reasoningParts, ...content],
     },
     usage: {
       inputTokens,
