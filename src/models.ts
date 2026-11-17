@@ -16,12 +16,14 @@
  */
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 
-import { GenerationCommonConfigSchema, ModelReference } from 'genkit';
+import { ModelReference } from 'genkit';
 import { modelRef } from 'genkit/model';
+
+import { AwsBedrockConfigSchema } from './types.js';
 
 export const amazonNova2LiteV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.amazon.nova-2-lite-v1:0`,
     info: {
@@ -35,13 +37,13 @@ export const amazonNova2LiteV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const amazonNovaPremierV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.amazon.nova-premier-v1:0`,
     info: {
@@ -55,13 +57,13 @@ export const amazonNovaPremierV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const amazonNovaProV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.amazon.nova-pro-v1:0`,
     info: {
@@ -75,7 +77,7 @@ export const amazonNovaProV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
@@ -92,7 +94,7 @@ export const amazonNovaLiteV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const amazonNovaMicroV1 = modelRef({
@@ -108,7 +110,7 @@ export const amazonNovaMicroV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const amazonTitanTextG1PremierV1 = modelRef({
@@ -124,7 +126,7 @@ export const amazonTitanTextG1PremierV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const amazonTitanTextG1ExpressV1 = modelRef({
@@ -140,7 +142,7 @@ export const amazonTitanTextG1ExpressV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const amazonTitanTextG1LiteV1 = modelRef({
@@ -156,7 +158,7 @@ export const amazonTitanTextG1LiteV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const googleGemma312BIt = modelRef({
@@ -173,7 +175,7 @@ export const googleGemma312BIt = modelRef({
       constrained: 'all',
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const cohereRerank35V1 = modelRef({
@@ -189,7 +191,7 @@ export const cohereRerank35V1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const cohereCommandRV1 = modelRef({
@@ -205,7 +207,7 @@ export const cohereCommandRV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const cohereCommandRPlusV1 = modelRef({
@@ -221,7 +223,7 @@ export const cohereCommandRPlusV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const cohereCommandLightV14 = modelRef({
@@ -237,7 +239,7 @@ export const cohereCommandLightV14 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const cohereCommandV14 = modelRef({
@@ -253,12 +255,12 @@ export const cohereCommandV14 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const anthropicClaudeSonnet4V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`,
     info: {
@@ -272,13 +274,13 @@ export const anthropicClaudeSonnet4V1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeOpus4V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`,
     info: {
@@ -292,13 +294,13 @@ export const anthropicClaudeOpus4V1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeOpus41V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`,
     info: {
@@ -312,13 +314,13 @@ export const anthropicClaudeOpus41V1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeSonnet45V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`,
     info: {
@@ -335,13 +337,13 @@ export const anthropicClaudeSonnet45V1 = (
         constrained: 'all',
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeHaiku45V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`,
     info: {
@@ -356,13 +358,13 @@ export const anthropicClaudeHaiku45V1 = (
         constrained: 'all',
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeOpus45V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`,
     info: {
@@ -377,13 +379,13 @@ export const anthropicClaudeOpus45V1 = (
         constrained: 'all',
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeOpus46V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-6-v1`,
     info: {
@@ -398,13 +400,13 @@ export const anthropicClaudeOpus46V1 = (
         constrained: 'all',
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaudeSonnet46V1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-6`,
     info: {
@@ -419,13 +421,13 @@ export const anthropicClaudeSonnet46V1 = (
         constrained: 'all',
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude35HaikuV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-5-haiku-20241022-v1:0`,
     info: {
@@ -439,13 +441,13 @@ export const anthropicClaude35HaikuV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude3HaikuV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-haiku-20240307-v1:0`,
     info: {
@@ -459,13 +461,13 @@ export const anthropicClaude3HaikuV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude3OpusV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-opus-20240229-v1:0`,
     info: {
@@ -479,13 +481,13 @@ export const anthropicClaude3OpusV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude37SonnetV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-7-sonnet-20250219-v1:0`,
     info: {
@@ -501,13 +503,13 @@ export const anthropicClaude37SonnetV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude35SonnetV2 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-5-sonnet-20241022-v2:0`,
     info: {
@@ -523,13 +525,13 @@ export const anthropicClaude35SonnetV2 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude35SonnetV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-5-sonnet-20240620-v1:0`,
     info: {
@@ -545,13 +547,13 @@ export const anthropicClaude35SonnetV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const anthropicClaude3SonnetV1 = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-sonnet-20240229-v1:0`,
     info: {
@@ -565,7 +567,7 @@ export const anthropicClaude3SonnetV1 = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
@@ -582,7 +584,7 @@ export const anthropicClaude21V1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const anthropicClaude2V1 = modelRef({
@@ -598,7 +600,7 @@ export const anthropicClaude2V1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const anthropicClaudeInstantV1 = modelRef({
@@ -614,7 +616,7 @@ export const anthropicClaudeInstantV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralMagistralSmall2509 = modelRef({
@@ -631,7 +633,7 @@ export const mistralMagistralSmall2509 = modelRef({
       constrained: 'all',
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralMinistral314BInstruct = modelRef({
@@ -648,7 +650,7 @@ export const mistralMinistral314BInstruct = modelRef({
       constrained: 'all',
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralMinistral38BInstruct = modelRef({
@@ -665,7 +667,7 @@ export const mistralMinistral38BInstruct = modelRef({
       constrained: 'all',
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralMinistral33BInstruct = modelRef({
@@ -682,7 +684,7 @@ export const mistralMinistral33BInstruct = modelRef({
       constrained: 'all',
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralLarge3675BInstruct = modelRef({
@@ -699,7 +701,7 @@ export const mistralLarge3675BInstruct = modelRef({
       constrained: 'all',
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const pixtralLarge2502V1 = modelRef({
@@ -715,7 +717,7 @@ export const pixtralLarge2502V1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralLarge2402V1 = modelRef({
@@ -731,7 +733,7 @@ export const mistralLarge2402V1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistralSmall2402V1 = modelRef({
@@ -747,7 +749,7 @@ export const mistralSmall2402V1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistral7BInstructV02 = modelRef({
@@ -763,7 +765,7 @@ export const mistral7BInstructV02 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const mistral8x7BInstructV01 = modelRef({
@@ -779,7 +781,7 @@ export const mistral8x7BInstructV01 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const ai21Jamba15LargeV1 = modelRef({
@@ -795,7 +797,7 @@ export const ai21Jamba15LargeV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const ai21Jamba15MiniV1 = modelRef({
@@ -811,7 +813,7 @@ export const ai21Jamba15MiniV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const ai21JambaInstructV1 = modelRef({
@@ -827,7 +829,7 @@ export const ai21JambaInstructV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const ai21Jurassic2MidV1 = modelRef({
@@ -843,7 +845,7 @@ export const ai21Jurassic2MidV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const ai21Jurassic2UltraV1 = modelRef({
@@ -859,12 +861,12 @@ export const ai21Jurassic2UltraV1 = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const metaLlama4Maverick17BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`,
     info: {
@@ -878,13 +880,13 @@ export const metaLlama4Maverick17BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama4Scout17BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`,
     info: {
@@ -898,13 +900,13 @@ export const metaLlama4Scout17BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama3370BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-3-70b-instruct-v1:0`,
     info: {
@@ -918,13 +920,13 @@ export const metaLlama3370BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama3211BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-11b-instruct-v1:0`,
     info: {
@@ -938,13 +940,13 @@ export const metaLlama3211BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama321BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-1b-instruct-v1:0`,
     info: {
@@ -958,13 +960,13 @@ export const metaLlama321BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama323BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-3b-instruct-v1:0`,
     info: {
@@ -978,13 +980,13 @@ export const metaLlama323BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama3290BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-90b-instruct-v1:0`,
     info: {
@@ -998,13 +1000,13 @@ export const metaLlama3290BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama3170BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-1-70b-instruct-v1:0`,
     info: {
@@ -1018,13 +1020,13 @@ export const metaLlama3170BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
 export const metaLlama318BInstruct = (
   inferenceRegion: string = 'us'
-): ModelReference<typeof GenerationCommonConfigSchema> => {
+): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
     name: `aws-bedrock/${inferenceRegion}.meta.llama3-1-8b-instruct-v1:0`,
     info: {
@@ -1038,7 +1040,7 @@ export const metaLlama318BInstruct = (
         output: ['text', 'json'],
       },
     },
-    configSchema: GenerationCommonConfigSchema,
+    configSchema: AwsBedrockConfigSchema,
   });
 };
 
@@ -1055,7 +1057,7 @@ export const metaLlama370BInstruct = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const metaLlama38BInstruct = modelRef({
@@ -1071,7 +1073,7 @@ export const metaLlama38BInstruct = modelRef({
       output: ['text', 'json'],
     },
   },
-  configSchema: GenerationCommonConfigSchema,
+  configSchema: AwsBedrockConfigSchema,
 });
 
 export const SUPPORTED_AWS_BEDROCK_MODELS = (

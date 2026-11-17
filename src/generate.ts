@@ -19,9 +19,10 @@ import {
   BedrockRuntimeClient,
   ConverseCommand,
 } from '@aws-sdk/client-bedrock-runtime';
-import { GenerateRequest, GenerationCommonConfigSchema } from 'genkit';
+import { GenerateRequest } from 'genkit';
 import { GenerateResponseChunkData, ModelAction } from 'genkit/model';
 import { model } from 'genkit/plugin';
+import { AwsBedrockConfigSchema } from './types.js';
 
 import { fromAwsBedrockChoice, toAwsBedrockRequestBody } from './converse.js';
 import { toGenkitError } from './errors.js';
@@ -32,7 +33,7 @@ export function awsBedrockModel(
   name: string,
   client: BedrockRuntimeClient,
   inferenceRegion: string
-): ModelAction<typeof GenerationCommonConfigSchema> {
+): ModelAction<typeof AwsBedrockConfigSchema> {
   const modelId = `aws-bedrock/${name}`;
   const modelReference = SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)[name];
 
@@ -56,13 +57,13 @@ export function awsBedrockModel(
             output: ['text', 'json'],
           },
         },
-        configSchema: GenerationCommonConfigSchema,
+        configSchema: AwsBedrockConfigSchema,
       };
 
   return model(
     modelInfo,
     async (
-      request: GenerateRequest<typeof GenerationCommonConfigSchema>,
+      request: GenerateRequest<typeof AwsBedrockConfigSchema>,
       {
         streamingRequested,
         sendChunk,
@@ -86,6 +87,12 @@ export function awsBedrockModel(
             sendChunk,
             abortSignal
           );
+        }
+        // streamProcessingMode is only valid on ConverseStream.
+        if (body.guardrailConfig) {
+          body.guardrailConfig = { ...body.guardrailConfig };
+          delete (body.guardrailConfig as { streamProcessingMode?: string })
+            .streamProcessingMode;
         }
         const converseResponse = await client.send(new ConverseCommand(body), {
           abortSignal,
