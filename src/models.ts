@@ -1208,3 +1208,52 @@ const INFERENCE_PROFILE_PREFIX = /^(us-gov|us|eu|apac|jp|au|ca|global)\./;
 export function baseModelId(modelId: string): string {
   return modelId.replace(INFERENCE_PROFILE_PREFIX, '');
 }
+
+/**
+ * Capabilities assumed for models the plugin doesn't know: modern Converse
+ * chat models support all of these.
+ */
+export const DEFAULT_MODEL_SUPPORTS = {
+  multiturn: true,
+  tools: true,
+  media: true,
+  systemRole: true,
+  output: ['text', 'json'],
+};
+
+let knownModels: Record<string, ModelReference<any>> | undefined;
+
+/** The known chat models, keyed by base model ID. */
+export function knownChatModels(): Record<string, ModelReference<any>> {
+  if (!knownModels) {
+    knownModels = {};
+    for (const [id, ref] of Object.entries(SUPPORTED_AWS_BEDROCK_MODELS())) {
+      knownModels[baseModelId(id)] = ref;
+    }
+  }
+  return knownModels;
+}
+
+/**
+ * Returns the label and capabilities of a chat model, looked up by its ID
+ * without any inference-profile prefix. Unknown models, including newer
+ * models and profile-only IDs, get modern Converse defaults so they can be
+ * called without being added to the list.
+ */
+export function modelInfoFor(modelId: string): {
+  label: string;
+  versions?: string[];
+  supports: typeof DEFAULT_MODEL_SUPPORTS & Record<string, unknown>;
+} {
+  const ref = knownChatModels()[baseModelId(modelId)];
+  if (!ref?.info) {
+    return {
+      label: `AWS Bedrock - ${modelId}`,
+      supports: DEFAULT_MODEL_SUPPORTS,
+    };
+  }
+  return {
+    label: ref.info.label ?? `AWS Bedrock - ${modelId}`,
+    supports: { ...DEFAULT_MODEL_SUPPORTS, ...(ref.info.supports as object) },
+  };
+}

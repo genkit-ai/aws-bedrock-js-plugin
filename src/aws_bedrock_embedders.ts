@@ -469,16 +469,25 @@ const EMBED_BY_FAMILY = {
  * rejected.
  */
 export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
-  const modelRef = SUPPORTED_EMBEDDING_MODELS[name];
-  if (!modelRef) throw new Error(`Unsupported model: ${name}`);
   const family = embedderFamily(name);
   if (!family) throw new Error(`Unsupported model: ${name}`);
+  // Known embedders keep their info; other IDs in a known family (newer
+  // versions, inference profiles) get a generic label.
+  const known =
+    SUPPORTED_EMBEDDING_MODELS[name] ??
+    SUPPORTED_EMBEDDING_MODELS[
+      name.replace(/^(us-gov|us|eu|apac|jp|au|ca|global)\./, '')
+    ];
+  const info = known?.info ?? {
+    label: `AWS Bedrock - ${name}`,
+    supports: { input: family === 'titan-text' ? ['text'] : ['text', 'image'] },
+  };
 
   return embedder(
     {
-      info: modelRef.info!,
+      info,
       configSchema: TextEmbeddingConfigSchema,
-      name: modelRef.name,
+      name: `aws-bedrock/${name}`,
     },
     async (request) => {
       const docs = request.input.map((d) => new Document(d));
