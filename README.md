@@ -33,7 +33,7 @@ Install the plugin in your project with your favourite package manager
 
 ### Versions
 
-if you are using Genkit version `<v0.9.0`, please use the plugin version `v1.9.0`. If you are using Genkit `>=v0.9.0`, please use the plugin version `>=v1.10.0`.
+If you are using Genkit version `<v0.9.0`, please use the plugin version `v1.9.0`. If you are using Genkit `>=v0.9.0`, please use the plugin version `>=v1.10.0`.
 
 ## Usage
 
@@ -136,7 +136,7 @@ The plugin registers its models under the inference-profile prefix for your regi
 
 To use another profile, such as `global.`, `jp.` or `au.`, pass its ID to `awsBedrock.model()` (see [Using Custom Models](#using-custom-models)).
 
-You can check more information about the available models in the [AWS Bedrock PLugin documentation](https://xavidop.github.io/genkitx-aws-bedrock/).
+You can check more information about the available models in the [AWS Bedrock plugin documentation](https://xavidop.github.io/genkitx-aws-bedrock/).
 
 ### Basic examples
 
@@ -661,7 +661,22 @@ See the [Lambda example](./examples/lambda) for a complete working project with 
 
 ## Supported models
 
-This plugin supports all currently available **Chat/Completion** and **Embeddings** models from AWS Bedrock. This plugin supports image input and multimodal models.
+| Kind | What the plugin supports |
+|---|---|
+| Chat | Every Converse model: Anthropic Claude, Amazon Nova, Meta Llama, Mistral, Cohere Command, AI21 Jamba, Google Gemma and newer models by ID. Text, images, documents and video in; text, JSON, tool calls and reasoning out; streaming |
+| Embeddings | Titan Text v1/v2, Titan Multimodal, Cohere Embed v3/v4, Nova Multimodal Embeddings |
+| Reranking | Cohere Rerank 3.5, Amazon Rerank 1.0 |
+| Image generation | Titan Image Generator, Nova Canvas, Stable Diffusion XL, Stable Diffusion 3.5, Stable Image Core and Ultra |
+
+Your AWS account needs [model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) to each model in the region you call it from. Many newer models, including Claude 4.x, are only offered through cross-region inference profiles; see [Configuration with Inference Endpoint](#configuration-with-inference-endpoint).
+
+### Known limitations
+
+- Bedrock does not fetch remote media. Pass images, documents and videos as base64 data URLs or `s3://` URIs.
+- Converse has no "none" tool choice. Once a conversation holds tool calls, `toolChoice: 'none'` still sends the tools.
+- `toolChoice: 'required'` and a named tool work only on models that support them, including Claude, Nova and Mistral Large.
+- Image generation takes a text prompt; image-to-image tasks (inpainting, variations) aren't supported yet.
+- Embeddings and image generation call `InvokeModel` once per document or request, so large batches are bounded by your Bedrock quotas.
 
 ## API Reference
 
@@ -669,7 +684,7 @@ You can find the full API reference in the [API Reference Documentation](https:/
 
 ## Contributing
 
-Want to contribute to the project? That's awesome! Head over to our [Contribution Guidelines](https://github.com/genkit-ai/aws-bedrock-js-plugin/blob/main/CONTRIBUTING.md).
+Want to contribute to the project? That's awesome! Head over to our [Contribution Guidelines](https://github.com/genkit-ai/aws-bedrock-js-plugin/blob/main/CONTRIBUTING.md), which cover building, formatting, the unit tests (`npm test`) and the opt-in live tests against Bedrock (`npm run test:live`).
 
 ## Need support?
 
