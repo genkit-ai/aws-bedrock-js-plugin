@@ -92,6 +92,21 @@ describe('awsBedrockReranker', () => {
     assert.equal(sent.length, 0);
   });
 
+  it('rejects a query without text', async () => {
+    const { client, sent } = fakeClient(() => jsonBody({ results: [] }));
+    await assert.rejects(
+      awsBedrockReranker(
+        'amazon.rerank-v1:0',
+        client
+      )({
+        query: { content: [] },
+        documents: [doc('a')],
+      }),
+      /rerank query has no text/
+    );
+    assert.equal(sent.length, 0);
+  });
+
   it('rejects documents without text', async () => {
     const { client } = fakeClient(() => jsonBody({ results: [] }));
     await assert.rejects(

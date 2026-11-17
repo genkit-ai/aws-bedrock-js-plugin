@@ -104,6 +104,12 @@ export function awsBedrockReranker(
     { name: ref.name, configSchema: RerankConfigSchema, info: ref.info },
     async (query: Document, documents: Document[], options) => {
       if (documents.length === 0) return { documents: [] };
+      if (!query.text) {
+        throw new GenkitError({
+          status: 'INVALID_ARGUMENT',
+          message: 'The rerank query has no text.',
+        });
+      }
       const texts = documents.map((doc, i) => {
         if (!doc.text) {
           throw new GenkitError({
