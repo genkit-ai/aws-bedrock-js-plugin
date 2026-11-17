@@ -46,9 +46,11 @@ describe('toAwsBedrockMessages', () => {
       },
     ]);
     assert.equal(msg.role, 'user');
-    assert.deepEqual(msg.content![0], { text: 'what is this?' });
-    assert.equal(msg.content![1].image?.format, 'png');
-    assert.ok(msg.content![1].image?.source?.bytes instanceof Uint8Array);
+    assert.ok(msg.content);
+    assert.equal(msg.content.length, 2);
+    assert.deepEqual(msg.content[0], { text: 'what is this?' });
+    assert.equal(msg.content[1].image?.format, 'png');
+    assert.ok(msg.content[1].image?.source?.bytes instanceof Uint8Array);
   });
 
   it('converts assistant text', () => {
@@ -119,8 +121,9 @@ describe('toAwsBedrockMessages', () => {
 describe('toAwsBedrockTextAndMedia', () => {
   it('sends documents as document blocks', () => {
     const block = toAwsBedrockTextAndMedia({ media: { url: PDF } }, 'png');
-    assert.equal(block.document?.format, 'pdf');
-    assert.match(block.document!.name!, /^document-pdf-[a-z0-9]+$/);
+    assert.ok(block.document?.name);
+    assert.equal(block.document.format, 'pdf');
+    assert.match(block.document.name, /^document-pdf-[a-z0-9]+$/);
   });
 
   it('rejects unsupported media types', () => {

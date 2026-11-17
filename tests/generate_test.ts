@@ -34,6 +34,8 @@ describe('awsBedrockModel', () => {
     const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
     const res = await model(request);
 
+    assert.equal(sent.length, 1);
+
     assert.equal(sent[0].name, 'ConverseCommand');
     assert.equal(sent[0].input.modelId, 'amazon.nova-lite-v1:0');
     assert.deepEqual(res.message?.content, [{ text: 'hello' }]);
@@ -103,6 +105,8 @@ describe('awsBedrockModel', () => {
     const res = await model(request, {
       onChunk: (c) => chunks.push(c.content.map((p) => p.text ?? '').join('')),
     });
+
+    assert.equal(sent.length, 1);
 
     assert.equal(sent[0].name, 'ConverseStreamCommand');
     assert.deepEqual(chunks.filter(Boolean), ['Hel', 'lo']);

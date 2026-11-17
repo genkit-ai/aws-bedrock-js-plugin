@@ -31,6 +31,8 @@ describe('awsBedrockEmbedder', () => {
       options: { dimensions: 256 },
     });
 
+    assert.equal(sent.length, 1);
+
     assert.equal(sent[0].name, 'InvokeModelCommand');
     assert.equal(sent[0].input.modelId, 'amazon.titan-embed-text-v2:0');
     assert.deepEqual(JSON.parse(sent[0].input.body), {
