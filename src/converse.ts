@@ -19,6 +19,7 @@
 import {
   Message as AwsMessge,
   ContentBlock,
+  ConversationRole,
   ConverseCommandInput,
   ConverseCommandOutput,
   ConverseStreamCommandInput,
@@ -26,32 +27,36 @@ import {
   ImageFormat,
   OutputFormatType,
   SystemContentBlock,
+  TokenUsage,
   Tool,
-  ToolUseBlock,
+  VideoFormat,
 } from '@aws-sdk/client-bedrock-runtime';
 import {
   GenerateRequest,
   GenerationCommonConfigSchema,
-  Message,
   MessageData,
   Part,
   Role,
-  ToolRequestPart,
 } from 'genkit';
-import { ModelResponseData, ToolDefinition } from 'genkit/model';
+import { extractJson } from 'genkit/extract';
+import {
+  GenerationUsage,
+  ModelResponseData,
+  ToolDefinition,
+} from 'genkit/model';
 
 import { SUPPORTED_AWS_BEDROCK_MODELS } from './models.js';
 
-function toAwsBedrockbRole(role: Role): string {
+function toAwsBedrockRole(role: Role): ConversationRole | 'system' {
   switch (role) {
     case 'user':
+    case 'tool':
+      // Tool results go back to Bedrock in a user message.
       return 'user';
     case 'model':
       return 'assistant';
     case 'system':
       return 'system';
-    case 'tool':
-      return 'tool';
     default:
       throw new Error(`role ${role} doesn't map to an AWS Bedrock role.`);
   }
@@ -69,18 +74,17 @@ function toAwsBedrockTool(tool: ToolDefinition): Tool {
     },
   };
 }
-const regex = /data:.*base64,/;
-const getDataPart = (dataUrl: string) => dataUrl.replace(regex, '');
 
 /**
- * Extracts the content type from a data URL.
- * @param url The data URL to parse.
- * @returns The content type, or null if invalid.
+ * Map of MIME types to Bedrock image formats.
  */
-function extractContentTypeFromDataUrl(url: string): string | null {
-  const match = url.match(/^data:([^;]+);base64,/);
-  return match ? match[1] : null;
-}
+const MIME_TO_IMAGE_FORMAT: Record<string, ImageFormat> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
+  'image/jpg': 'jpeg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
 
 /**
  * Map of MIME types to Bedrock document formats.
@@ -99,22 +103,88 @@ const MIME_TO_DOCUMENT_FORMAT: Record<string, DocumentFormat> = {
 };
 
 /**
- * Checks if a content type is an image type.
- * @param contentType The content type to check.
- * @returns True if the content type is an image type.
+ * Map of MIME types to Bedrock video formats.
  */
-function isImageContentType(contentType?: string): boolean {
-  if (!contentType) return false;
-  return contentType.startsWith('image/');
+const MIME_TO_VIDEO_FORMAT: Record<string, VideoFormat> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/x-matroska': 'mkv',
+  'video/webm': 'webm',
+  'video/x-flv': 'flv',
+  'video/mpeg': 'mpeg',
+  'video/mpg': 'mpg',
+  'video/x-ms-wmv': 'wmv',
+  'video/3gpp': 'three_gp',
+};
+
+/**
+ * Returns the media part's MIME type, taken from `contentType` or else from
+ * a data URL, lowercased and without parameters.
+ */
+function mediaContentType(media: {
+  url: string;
+  contentType?: string;
+}): string | undefined {
+  let contentType = media.contentType;
+  if (!contentType && media.url.startsWith('data:')) {
+    contentType = media.url.slice(5).split(/[;,]/)[0];
+  }
+  contentType = contentType?.split(';')[0].trim().toLowerCase();
+  return contentType || undefined;
 }
 
 /**
- * Gets the Bedrock document format from a MIME type.
- * @param contentType The MIME type.
- * @returns The Bedrock document format, or undefined if not supported.
+ * Where Bedrock should read media from: inline bytes, or an S3 object.
  */
-function getDocumentFormat(contentType: string): DocumentFormat | undefined {
-  return MIME_TO_DOCUMENT_FORMAT[contentType];
+type MediaSource = { bytes: Uint8Array } | { s3Location: { uri: string } };
+
+function mediaSource(url: string): MediaSource {
+  if (url.startsWith('s3://')) {
+    return { s3Location: { uri: url } };
+  }
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    throw new Error(
+      'AWS Bedrock does not fetch remote media URLs. Pass the media as a base64 data URL or an s3:// URI.'
+    );
+  }
+  let data = url;
+  if (url.startsWith('data:')) {
+    const comma = url.indexOf(',');
+    if (comma < 0 || !url.slice(0, comma).endsWith(';base64')) {
+      throw new Error(
+        'Media data URLs must be base64-encoded (data:<type>;base64,...).'
+      );
+    }
+    data = url.slice(comma + 1);
+  }
+  return { bytes: new Uint8Array(Buffer.from(data, 'base64')) };
+}
+
+/**
+ * Guesses an image format from its first bytes. Used only when a media part
+ * has no content type at all.
+ */
+function sniffImageFormat(source: MediaSource): ImageFormat | undefined {
+  if (!('bytes' in source)) return undefined;
+  const b = source.bytes;
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+    return 'png';
+  }
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'gif';
+  if (
+    b[0] === 0x52 &&
+    b[1] === 0x49 &&
+    b[2] === 0x46 &&
+    b[3] === 0x46 &&
+    b[8] === 0x57 &&
+    b[9] === 0x45 &&
+    b[10] === 0x42 &&
+    b[11] === 0x50
+  ) {
+    return 'webp';
+  }
+  return undefined;
 }
 
 /**
@@ -128,260 +198,273 @@ function generateFilenameFromFormat(format: DocumentFormat): string {
   return `document-${format}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * Converts a text or media part to a Bedrock content block.
+ *
+ * Images, documents and videos are chosen by MIME type, taken from the part's
+ * `contentType` or its data URL. Media can be a base64 data URL or an s3://
+ * URI; remote http(s) URLs are rejected because Bedrock does not fetch them.
+ *
+ * @param imageFormat Used only for a media part with no content type whose
+ *   bytes are not a recognisable image.
+ */
 export function toAwsBedrockTextAndMedia(
   part: Part,
-  imageFormat: ImageFormat
+  imageFormat: ImageFormat = 'png'
 ): ContentBlock {
-  if (part.text) {
-    return {
-      text: part.text,
-    };
-  } else if (part.media) {
-    // Determine the content type from the media part or data URL
-    let contentType = part.media.contentType;
-    if (!contentType && part.media.url.startsWith('data:')) {
-      contentType = extractContentTypeFromDataUrl(part.media.url) || undefined;
-    }
-
-    const dataBuffer = new Uint8Array(
-      Buffer.from(getDataPart(part.media.url), 'base64')
-    );
-
-    // Handle media based on content type
-    if (contentType) {
-      const docFormat = getDocumentFormat(contentType);
-      if (docFormat) {
-        return {
-          document: {
-            name: generateFilenameFromFormat(docFormat),
-            format: docFormat,
-            source: { bytes: dataBuffer },
-          },
-        };
-      }
-
-      if (isImageContentType(contentType)) {
-        return {
-          image: {
-            source: { bytes: dataBuffer },
-            format: imageFormat,
-          },
-        };
-      }
-
-      // For unsupported content types, throw an error
-      throw Error(
-        `Unsupported media content type: ${contentType}. Supported types are images and documents (pdf, csv, txt, html, md, doc, docx, xls, xlsx).`
-      );
-    }
-
-    // Default to image when no contentType is provided (preserve legacy behavior)
-    return {
-      image: {
-        source: { bytes: dataBuffer },
-        format: imageFormat,
-      },
-    };
+  if (part.text !== undefined) {
+    return { text: part.text };
   }
-  throw Error(
-    `Unsupported genkit part fields encountered for current message role: ${part}.`
+  if (part.media) {
+    const contentType = mediaContentType(part.media);
+    const source = mediaSource(part.media.url);
+
+    if (!contentType) {
+      // Legacy behaviour: media without a content type is sent as an image.
+      return {
+        image: {
+          source,
+          format: sniffImageFormat(source) ?? imageFormat,
+        },
+      };
+    }
+
+    const docFormat = MIME_TO_DOCUMENT_FORMAT[contentType];
+    if (docFormat) {
+      return {
+        document: {
+          name: generateFilenameFromFormat(docFormat),
+          format: docFormat,
+          source,
+        },
+      };
+    }
+
+    const image = MIME_TO_IMAGE_FORMAT[contentType];
+    if (image) {
+      return { image: { source, format: image } };
+    }
+
+    const video = MIME_TO_VIDEO_FORMAT[contentType];
+    if (video) {
+      return { video: { source, format: video } };
+    }
+
+    throw new Error(
+      `Unsupported media content type: ${contentType}. Supported types are png, jpeg, gif and webp images, documents (pdf, csv, txt, html, md, doc, docx, xls, xlsx) and videos (mp4, mov, mkv, webm, flv, mpeg, mpg, wmv, 3gp).`
+    );
+  }
+  throw new Error(
+    `Unsupported genkit part fields encountered for current message role: ${JSON.stringify(part)}.`
   );
 }
 
+/**
+ * Returns the text of every system message, in order, or null when the
+ * request has none.
+ */
 export function getSystemMessage(
   messages: MessageData[]
 ): SystemContentBlock[] | null {
+  const blocks: SystemContentBlock[] = [];
   for (const message of messages) {
-    if (message.role === 'system') {
-      return [
-        {
-          text: message.content[0].text!,
-        },
-      ];
+    if (message.role !== 'system') continue;
+    for (const part of message.content) {
+      if (part.text) blocks.push({ text: part.text });
     }
   }
-  return null;
+  return blocks.length > 0 ? blocks : null;
 }
 
+/**
+ * Converts one Genkit part of a user, model or tool message to Bedrock
+ * content blocks.
+ */
+function toContentBlocks(part: Part, imageFormat: ImageFormat): ContentBlock[] {
+  if (part.text !== undefined) {
+    // Bedrock rejects blank text blocks.
+    return part.text.trim() ? [{ text: part.text }] : [];
+  }
+  if (part.media) {
+    return [toAwsBedrockTextAndMedia(part, imageFormat)];
+  }
+  if (part.toolRequest) {
+    return [
+      {
+        toolUse: {
+          toolUseId: part.toolRequest.ref || '',
+          name: part.toolRequest.name,
+          input: (part.toolRequest.input ?? {}) as any,
+        },
+      },
+    ];
+  }
+  if (part.toolResponse) {
+    return [
+      {
+        toolResult: {
+          toolUseId: part.toolResponse.ref || '',
+          content: [
+            {
+              json: {
+                result: part.toolResponse.output as { [key: string]: any },
+              },
+            },
+          ],
+        },
+      },
+    ];
+  }
+  if (part.data !== undefined) {
+    return [{ text: JSON.stringify(part.data) }];
+  }
+  // Parts Bedrock has no equivalent for (custom, resource, ...) are skipped.
+  return [];
+}
+
+/**
+ * Converts Genkit messages to Bedrock Converse messages.
+ *
+ * System messages are left out (see getSystemMessage). Tool messages become
+ * user messages carrying toolResult blocks, and consecutive messages with the
+ * same Bedrock role are merged, because Converse requires the conversation to
+ * alternate and wants every result for a turn's tool calls in one message.
+ */
 export function toAwsBedrockMessages(
   messages: MessageData[],
   imageFormat: ImageFormat = 'png'
 ): AwsMessge[] {
   const awsBedrockMsgs: AwsMessge[] = [];
   for (const message of messages) {
-    const msg = new Message(message);
-    const role = toAwsBedrockbRole(message.role);
-    switch (role) {
-      case 'system': {
-        break;
-      }
-      case 'user': {
-        const textAndMedia = msg.content.map((part) =>
-          toAwsBedrockTextAndMedia(part, imageFormat)
-        );
-        if (textAndMedia.length > 1) {
-          awsBedrockMsgs.push({
-            role: role,
-            content: textAndMedia,
-          });
-        } else {
-          awsBedrockMsgs.push({
-            role: role,
-            content: [
-              {
-                text: msg.text,
-              },
-            ],
-          });
-        }
-        break;
-      }
-      case 'assistant': {
-        // Request to call the tool
+    const role = toAwsBedrockRole(message.role);
+    if (role === 'system') continue;
 
-        const toolCalls: ToolUseBlock[] = msg.content
-          .filter((part) => part.toolRequest)
-          .map((part) => {
-            if (!part.toolRequest) {
-              throw Error(
-                'Mapping genkit message to openai tool call content part but message.toolRequest not provided.'
-              );
-            }
-            return {
-              toolUseId: part.toolRequest.ref || '',
-              name: part.toolRequest.name,
-              input: part.toolRequest.input as any,
-            };
-          });
-        if (toolCalls?.length > 0) {
-          awsBedrockMsgs.push({
-            role: role,
-            content: toolCalls.map((toolCall) => ({ toolUse: toolCall })),
-          });
-        } else {
-          awsBedrockMsgs.push({
-            role: role,
-            content: [
-              {
-                text:
-                  msg.data !== undefined && !msg.text
-                    ? JSON.stringify(msg.data)
-                    : msg.text,
-              },
-            ],
-          });
-        }
-        break;
-      }
-      case 'tool': {
-        // result of the tool
-        const toolResponseParts = msg.toolResponseParts();
+    const content = message.content.flatMap((part) =>
+      toContentBlocks(part, imageFormat)
+    );
+    if (content.length === 0) continue;
 
-        toolResponseParts.map((part) => {
-          const toolresult: AwsMessge = {
-            role: 'user',
-            content: [
-              {
-                toolResult: {
-                  toolUseId: part.toolResponse.ref,
-                  content: [
-                    {
-                      json: {
-                        result: part.toolResponse.output as {
-                          [key: string]: any;
-                        },
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          };
-          awsBedrockMsgs.push(toolresult);
-        });
-        break;
-      }
-      default:
-        throw new Error('unrecognized role');
+    const last = awsBedrockMsgs[awsBedrockMsgs.length - 1];
+    if (last && last.role === role) {
+      last.content!.push(...content);
+    } else {
+      awsBedrockMsgs.push({ role, content });
     }
   }
   return awsBedrockMsgs;
 }
 
-const finishReasonMap: Record<
-  NonNullable<string>,
-  ModelResponseData['finishReason']
-> = {
-  max_tokens: 'length',
-  end_turn: 'stop',
-  stop_sequence: 'stop',
-  tool_use: 'stop',
-  content_filtered: 'blocked',
-  guardrail_intervened: 'blocked',
-};
-
-function fromAwsBedrockToolCall(toolCall: ToolUseBlock) {
-  if (!('toolUseId' in toolCall)) {
-    throw Error(
-      `Unexpected AWS chunk choice. tool_calls was provided but one or more tool_calls is missing.`
-    );
-  }
-  const f = toolCall;
+/**
+ * Turns system messages into a user/assistant exchange, for models that
+ * don't accept a system prompt. Mirrors Genkit's simulateSystemPrompt.
+ */
+function simulateSystemPrompt(messages: MessageData[]): MessageData[] {
+  const system = messages.filter((m) => m.role === 'system');
+  if (system.length === 0) return messages;
   return [
     {
-      toolRequest: {
-        name: f.name,
-        ref: toolCall.toolUseId,
-        input: f.input,
-      },
+      role: 'user',
+      content: [
+        { text: 'SYSTEM INSTRUCTIONS:\n' },
+        ...system.flatMap((m) => m.content),
+      ],
     },
+    { role: 'model', content: [{ text: 'Understood.' }] },
+    ...messages.filter((m) => m.role !== 'system'),
   ];
 }
 
-function extractTextFromContent(content: ContentBlock[] | undefined): string {
-  if (!content) return '';
+const finishReasonMap: Record<string, ModelResponseData['finishReason']> = {
+  end_turn: 'stop',
+  stop_sequence: 'stop',
+  tool_use: 'stop',
+  max_tokens: 'length',
+  model_context_window_exceeded: 'length',
+  content_filtered: 'blocked',
+  guardrail_intervened: 'blocked',
+  malformed_model_output: 'other',
+  malformed_tool_use: 'other',
+};
 
-  // Find the content block that contains text (skip reasoningContent blocks)
-  for (const block of content) {
-    if ('text' in block && block.text) {
-      return block.text;
-    }
-  }
-  return '';
+/**
+ * Maps a Bedrock stop reason to a Genkit finish reason.
+ */
+export function fromAwsBedrockStopReason(
+  stopReason: string | undefined
+): ModelResponseData['finishReason'] {
+  if (!stopReason) return 'unknown';
+  return finishReasonMap[stopReason] ?? 'other';
 }
 
+/**
+ * Maps Bedrock token usage to Genkit usage, including prompt-cache reads.
+ * Cache writes have no Genkit field, so they go in `custom`.
+ */
+export function fromAwsBedrockUsage(
+  usage: TokenUsage | undefined
+): GenerationUsage {
+  const out: GenerationUsage = {
+    inputTokens: usage?.inputTokens || 0,
+    outputTokens: usage?.outputTokens || 0,
+    totalTokens: usage?.totalTokens || 0,
+  };
+  if (usage?.cacheReadInputTokens) {
+    out.cachedContentTokens = usage.cacheReadInputTokens;
+  }
+  if (usage?.cacheWriteInputTokens) {
+    out.custom = { cacheWriteInputTokens: usage.cacheWriteInputTokens };
+  }
+  return out;
+}
+
+/**
+ * Converts the model's text in JSON mode to a data part, accepting JSON
+ * wrapped in a code fence or surrounded by prose. Text that holds no JSON is
+ * returned as text so the caller still sees what the model said.
+ */
+export function jsonOutputPart(text: string): Part {
+  if (!text.trim()) return { data: {} };
+  const data = extractJson(text);
+  return data === null || data === undefined ? { text } : { data };
+}
+
+/**
+ * Converts a Converse response to a Genkit response.
+ *
+ * Text and tool calls are kept in the order Bedrock returned them. In JSON
+ * mode, a response without tool calls has its text parsed into a data part.
+ */
 export function fromAwsBedrockChoice(
   choice: ConverseCommandOutput,
   jsonMode = false
 ): ModelResponseData {
-  // Find all tool use blocks in the content array
-  const toolRequestParts: any[] = [];
-  if (choice.output?.message?.content) {
-    for (const contentBlock of choice.output.message.content) {
-      if (contentBlock.toolUse) {
-        toolRequestParts.push(...fromAwsBedrockToolCall(contentBlock.toolUse));
-      }
+  const content: Part[] = [];
+  for (const block of choice.output?.message?.content ?? []) {
+    if (block.text !== undefined) {
+      content.push({ text: block.text });
+    } else if (block.toolUse) {
+      content.push({
+        toolRequest: {
+          name: block.toolUse.name!,
+          ref: block.toolUse.toolUseId,
+          input: block.toolUse.input,
+        },
+      });
     }
   }
 
-  const textContent = extractTextFromContent(choice.output?.message?.content);
+  const hasToolRequests = content.some((p) => p.toolRequest);
+  let message: Part[] = content;
+  if (jsonMode && !hasToolRequests) {
+    message = [jsonOutputPart(content.map((p) => p.text ?? '').join(''))];
+  } else if (content.length === 0) {
+    message = [{ text: '' }];
+  }
 
   return {
-    finishReason:
-      'stopReason' in choice ? finishReasonMap[choice.stopReason!] : 'other',
-    message: {
-      role: 'model',
-      content:
-        Array.isArray(toolRequestParts) && toolRequestParts.length > 0
-          ? (toolRequestParts as ToolRequestPart[])
-          : [
-              jsonMode
-                ? {
-                    data: textContent ? JSON.parse(textContent) : {},
-                  }
-                : { text: textContent },
-            ],
-    },
+    finishReason: fromAwsBedrockStopReason(choice.stopReason),
+    message: { role: 'model', content: message },
+    usage: fromAwsBedrockUsage(choice.usage),
     custom: {},
   };
 }
@@ -400,36 +483,24 @@ export function toAwsBedrockRequestBody(
       },
     },
   };
-  const awsBedrockMessages = toAwsBedrockMessages(request.messages);
+  const systemRole = model.info.supports?.systemRole === true;
+  const messages = systemRole
+    ? request.messages
+    : simulateSystemPrompt(request.messages);
+  const awsBedrockMessages = toAwsBedrockMessages(messages);
 
-  const awsBedrockSystemMessage = getSystemMessage(request.messages) || [];
+  const awsBedrockSystemMessage = systemRole
+    ? getSystemMessage(request.messages) || []
+    : [];
 
   const jsonMode =
     request.output?.format === 'json' ||
     request.output?.contentType === 'application/json';
 
-  const textMode =
-    request.output?.format === 'text' ||
-    request.output?.contentType === 'plain/text';
-
-  const response_format = request.output?.format
-    ? request.output?.format
-    : request.output?.contentType;
-  if (jsonMode && model.info.supports?.output?.includes('json')) {
-    awsBedrockSystemMessage?.push({
+  if (jsonMode && model.info.supports?.output?.includes('json') && systemRole) {
+    awsBedrockSystemMessage.push({
       text: 'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.',
     });
-  } else if (
-    (textMode && model.info.supports?.output?.includes('text')) ||
-    model.info.supports?.output?.includes('text')
-  ) {
-    awsBedrockSystemMessage?.push({
-      text: 'You write objects in plain text. DO NOT provide any preamble.',
-    });
-  } else {
-    throw new Error(
-      `${response_format} format is not supported for GPT models currently`
-    );
   }
   const modelString = (request.config?.version ||
     model.version ||
@@ -438,9 +509,7 @@ export function toAwsBedrockRequestBody(
   const body: ConverseCommandInput | ConverseStreamCommandInput = {
     messages: awsBedrockMessages,
     system:
-      model.info.supports.systemRole === true
-        ? (awsBedrockSystemMessage as SystemContentBlock[])
-        : [],
+      awsBedrockSystemMessage.length > 0 ? awsBedrockSystemMessage : undefined,
     toolConfig:
       request.tools &&
       model.info.supports.tools === true &&

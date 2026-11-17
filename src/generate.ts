@@ -24,6 +24,7 @@ import { GenerateResponseChunkData, ModelAction } from 'genkit/model';
 import { model } from 'genkit/plugin';
 
 import { fromAwsBedrockChoice, toAwsBedrockRequestBody } from './converse.js';
+import { toGenkitError } from './errors.js';
 import { SUPPORTED_AWS_BEDROCK_MODELS } from './models.js';
 import { converseStream } from './stream.js';
 
@@ -73,26 +74,28 @@ export function awsBedrockModel(
       }
     ) => {
       const body = toAwsBedrockRequestBody(name, request, inferenceRegion);
-      if (streamingRequested) {
-        return converseStream(client, body, request, sendChunk, abortSignal);
-      } else {
-        const command = new ConverseCommand(body);
-        const converseResponse = await client.send(command, {
+      const jsonMode =
+        request.output?.format === 'json' ||
+        request.output?.contentType === 'application/json';
+      try {
+        if (streamingRequested) {
+          return await converseStream(
+            client,
+            body,
+            request,
+            sendChunk,
+            abortSignal
+          );
+        }
+        const converseResponse = await client.send(new ConverseCommand(body), {
           abortSignal,
         });
-
         return {
-          message: fromAwsBedrockChoice(
-            converseResponse,
-            request.output?.format === 'json'
-          ).message,
-          usage: {
-            inputTokens: converseResponse.usage?.inputTokens || 0,
-            outputTokens: converseResponse.usage?.outputTokens || 0,
-            totalTokens: converseResponse.usage?.totalTokens || 0,
-          },
+          ...fromAwsBedrockChoice(converseResponse, jsonMode),
           custom: converseResponse,
         };
+      } catch (err) {
+        throw toGenkitError(err);
       }
     }
   );
