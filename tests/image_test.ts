@@ -118,6 +118,20 @@ describe('fromImageResponse', () => {
   });
 });
 
+describe('fromImageResponse with unexpected bodies', () => {
+  it('returns no images instead of throwing', () => {
+    assert.deepEqual(fromImageResponse('titan', null), { images: [] });
+    assert.deepEqual(fromImageResponse('stability', { images: 'x' }), {
+      images: [],
+      blocked: undefined,
+    });
+    assert.deepEqual(
+      fromImageResponse('stability-sdxl', { artifacts: [null, { base64: 1 }] }),
+      { images: [], blocked: undefined }
+    );
+  });
+});
+
 describe('awsBedrockImageModel', () => {
   it('prompts with the latest user message and returns png media', async () => {
     const { client, sent } = fakeClient(() =>
@@ -169,6 +183,21 @@ describe('awsBedrockImageModel', () => {
       awsBedrockImageModel('amazon.nova-canvas-v1:0', client)({ messages: [] }),
       /needs a text prompt/
     );
+  });
+
+  it('skips custom models that are already registered', async () => {
+    const plugin = awsBedrock({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'x', secretAccessKey: 'y' },
+      customModels: ['amazon.nova-canvas-v1:0', 'amazon.nova-lite-v1:0'],
+    });
+    const actions = (await plugin.init!()) as {
+      __action: { actionType: string; name: string };
+    }[];
+    const keys = actions.map(
+      (a) => `${a.__action.actionType}/${a.__action.name}`
+    );
+    assert.equal(new Set(keys).size, keys.length);
   });
 
   it('is registered by the plugin, and custom image models route to it', async () => {

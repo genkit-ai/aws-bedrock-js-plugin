@@ -228,30 +228,41 @@ interface ImageResult {
  * Reads the images out of an image model's response.
  */
 export function fromImageResponse(family: ImageFamily, body: any): ImageResult {
+  const list = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+  if (!body || typeof body !== 'object') return { images: [] };
   switch (family) {
     case 'titan':
       return {
-        images: body.images ?? [],
-        blocked: body.error || undefined,
+        images: list(body.images).filter((i) => typeof i === 'string'),
+        blocked:
+          typeof body.error === 'string' && body.error ? body.error : undefined,
       };
     case 'stability-sdxl': {
-      const artifacts: { base64?: string; finishReason?: string }[] =
-        body.artifacts ?? [];
+      const artifacts: { base64?: string; finishReason?: string }[] = list(
+        body.artifacts
+      ).filter((a) => a && typeof a === 'object');
       const filtered = artifacts.find(
         (a) => a.finishReason === 'CONTENT_FILTERED'
       );
       return {
         images: artifacts
-          .filter((a) => a.base64 && a.finishReason !== 'CONTENT_FILTERED')
+          .filter(
+            (a) =>
+              typeof a.base64 === 'string' &&
+              a.base64 &&
+              a.finishReason !== 'CONTENT_FILTERED'
+          )
           .map((a) => a.base64!),
         blocked: filtered ? 'CONTENT_FILTERED' : undefined,
       };
     }
     case 'stability': {
-      const reasons: (string | null)[] = body.finish_reasons ?? [];
+      const reason = list(body.finish_reasons).find(
+        (r) => typeof r === 'string' && r && r !== 'SUCCESS'
+      );
       return {
-        images: body.images ?? [],
-        blocked: reasons.find((r) => r && r !== 'SUCCESS') ?? undefined,
+        images: list(body.images).filter((i) => typeof i === 'string'),
+        blocked: reason,
       };
     }
   }
@@ -309,10 +320,10 @@ export function awsBedrockImageModel(
           }),
           { abortSignal }
         )) as InvokeModelCommandOutput;
-        result = fromImageResponse(
-          family,
-          JSON.parse(new TextDecoder().decode(response.body))
-        );
+        const text = response.body
+          ? new TextDecoder().decode(response.body)
+          : '';
+        result = fromImageResponse(family, text ? JSON.parse(text) : {});
       } catch (err) {
         throw toGenkitError(err);
       }

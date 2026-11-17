@@ -334,9 +334,15 @@ export function awsBedrock(options?: PluginOptions) {
         actions.push(awsBedrockModel(name, client, inferenceRegion));
       }
 
-      // Register custom models if provided
+      // Register custom models if provided, skipping ones registered below
+      // or above, which would otherwise be defined twice.
       if (options?.customModels) {
-        for (const name of options.customModels) {
+        const registered = new Set([
+          ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)),
+          ...Object.keys(SUPPORTED_IMAGE_MODELS),
+        ]);
+        for (const name of new Set(options.customModels)) {
+          if (registered.has(name)) continue;
           actions.push(
             imageFamily(name)
               ? awsBedrockImageModel(name, client)
