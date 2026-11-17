@@ -14,8 +14,8 @@
   ],
   "version": "1.0.0",
   "type": "commonjs",
-  "main": "lib/cjs/index.js",
-  "module": "./lib/esm/index.mjs",
+  "main": "lib/index.js",
+  "module": "./lib/index.mjs",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/genkit-ai/aws-bedrock-js-plugin.git"
@@ -36,17 +36,18 @@
     "globals": "^17.0.0",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
+    "tsup": "^8.5.1",
     "typedoc": "^0.28.0",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.2.0"
   },
-  "types": "./lib/types/index.d.ts",
+  "types": "./lib/index.d.ts",
   "exports": {
     ".": {
-      "require": "./lib/cjs/index.js",
-      "default": "./lib/cjs/index.js",
-      "import": "./lib/esm/index.mjs",
-      "types": "./lib/types/index.d.ts"
+      "types": "./lib/index.d.ts",
+      "require": "./lib/index.js",
+      "import": "./lib/index.mjs",
+      "default": "./lib/index.js"
     }
   },
   "files": [
@@ -57,16 +58,16 @@
     "access": "public"
   },
   "scripts": {
-    "clean": "rimraf ./lib",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:esm": "tsc -p tsconfig.esm.json && npm run rename:esm",
-    "rename:esm": "./scripts/fix-mjs.sh",
-    "build": "npm run build:cjs && npm run build:esm",
-    "prepack": "npm run clean && npm run build",
+    "check": "tsc",
+    "compile": "tsup-node",
+    "build:clean": "rimraf ./lib",
+    "build": "npm run build:clean && npm run check && npm run compile",
+    "build:watch": "tsup-node --watch",
+    "prepack": "npm run build",
     "prettier": "prettier 'src/**/*.ts' --write",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "docs": "typedoc ./src/index.ts --out ./docs --tsconfig ./tsconfig.esm.json"
+    "docs": "typedoc ./src/index.ts --out ./docs --tsconfig ./tsconfig.json"
   },
   "overrides": {
     "glob": "^14.0.2",

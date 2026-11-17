@@ -22,6 +22,10 @@ jobs:
     - name: install
       run: npm install --frozen-lockfile
     - run: npm run build
+    - name: import the CJS and ESM builds
+      run: |
+        node -e "require('./lib/index.js')"
+        node --input-type=module -e "await import('./lib/index.mjs')"
     - name: SonarCloud Scan
       if: env.SONAR_TOKEN != null
       uses: SonarSource/sonarcloud-github-action@v5
