@@ -158,9 +158,14 @@ const KNOWN_FIELDS = new Set([
   'version',
 ]);
 
-function extraFields(config: ImageGenerationConfig): Record<string, unknown> {
+function extraFields(
+  config: ImageGenerationConfig,
+  omit: string[] = []
+): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(config).filter(([k]) => !KNOWN_FIELDS.has(k))
+    Object.entries(config).filter(
+      ([k]) => !KNOWN_FIELDS.has(k) && !omit.includes(k)
+    )
   );
 }
 
@@ -205,7 +210,8 @@ export function toImageRequest(
         height: config.height,
         style_preset: config.stylePreset,
         samples: config.numberOfImages,
-        ...extraFields(config),
+        // SDXL always returns PNG and has no output_format field.
+        ...extraFields(config, ['output_format']),
       };
     case 'stability':
       return {
@@ -229,9 +235,14 @@ const OUTPUT_FORMAT_TYPES: Record<string, string> = {
 /**
  * The MIME type of the images a request asks for. Stability models take an
  * output_format (png, jpeg or webp), which can be overridden through the
- * passthrough config; Titan, Nova Canvas and SDXL always return PNG.
+ * passthrough config; Titan, Nova Canvas and SDXL always return PNG, whatever
+ * the config says.
  */
-export function imageContentType(body: Record<string, unknown>): string {
+export function imageContentType(
+  family: ImageFamily,
+  body: Record<string, unknown>
+): string {
+  if (family !== 'stability') return 'image/png';
   const format = body.output_format;
   return (
     (typeof format === 'string' && OUTPUT_FORMAT_TYPES[format.toLowerCase()]) ||
@@ -350,7 +361,7 @@ export function awsBedrockImageModel(
         throw toGenkitError(err);
       }
 
-      const contentType = imageContentType(body);
+      const contentType = imageContentType(family, body);
       const content: Part[] = result.images.map((b64) => ({
         media: {
           url: `data:${contentType};base64,${b64}`,

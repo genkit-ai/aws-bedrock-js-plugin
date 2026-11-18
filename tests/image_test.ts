@@ -202,6 +202,25 @@ describe('awsBedrockImageModel', () => {
     assert.equal(res.message?.content[0].media?.contentType, 'image/png');
   });
 
+  it('labels SDXL images PNG even if the config sets output_format', async () => {
+    const { client, sent } = fakeClient(() =>
+      jsonBody({ artifacts: [{ base64: 'AAAA', finishReason: 'SUCCESS' }] })
+    );
+    const res = await awsBedrockImageModel(
+      'stability.stable-diffusion-xl-v1',
+      client
+    )({
+      messages: [{ role: 'user', content: [{ text: 'x' }] }],
+      config: { output_format: 'jpeg' },
+    });
+    assert.deepEqual(res.message?.content, [
+      {
+        media: { url: 'data:image/png;base64,AAAA', contentType: 'image/png' },
+      },
+    ]);
+    assert.equal(JSON.parse(sent[0].input.body).output_format, undefined);
+  });
+
   it('reports filtered output as blocked', async () => {
     const { client } = fakeClient(() =>
       jsonBody({ images: [], finish_reasons: ['Filter reason: output'] })
