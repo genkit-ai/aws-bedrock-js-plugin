@@ -542,10 +542,28 @@ const JSON_INSTRUCTION =
   'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.';
 
 /**
+ * Whether a result from the named tool is in the history after the user's
+ * last text or media message, i.e. the tool was already called this turn.
+ */
+function namedToolAnswered(messages: MessageData[], name: string): boolean {
+  let lastUserTurn = -1;
+  messages.forEach((m, i) => {
+    if (m.role === 'user' && m.content.some((p) => p.text || p.media)) {
+      lastUserTurn = i;
+    }
+  });
+  return messages
+    .slice(lastUserTurn + 1)
+    .some((m) => m.content.some((p) => p.toolResponse?.name === name));
+}
+
+/**
  * Builds the Converse toolConfig from the request's tools and tool choice.
  *
  * Genkit's toolChoice maps onto Converse as auto -> auto and required -> any.
- * config.toolChoice names one tool the model must call. Converse has no "none"
+ * config.toolChoice names one tool the model must call, until that tool's
+ * result is in the history after the user's last message; from then on the
+ * choice is auto, so Genkit's tool loop can finish. Converse has no "none"
  * choice, so toolChoice "none" leaves the tools out, unless the conversation
  * already holds tool calls or results, which Converse only accepts alongside
  * a toolConfig.
@@ -575,7 +593,13 @@ function toAwsBedrockToolConfig(
         message: `toolChoice "${named}" does not match any of the request's tools (${tools.map((t) => t.name).join(', ')}).`,
       });
     }
-    toolChoice = { tool: { name: named } };
+    // Genkit's tool loop resends the same config after running the tool, so
+    // forcing the tool every turn would loop until Genkit gives up. Once
+    // the named tool has answered since the user's last message, the model
+    // is left to answer (auto).
+    toolChoice = namedToolAnswered(request.messages, named)
+      ? { auto: {} }
+      : { tool: { name: named } };
   } else if (request.toolChoice === 'required') {
     toolChoice = { any: {} };
   } else if (request.toolChoice === 'auto') {

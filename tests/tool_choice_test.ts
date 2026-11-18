@@ -18,7 +18,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { genkit, z } from 'genkit';
+
 import { toAwsBedrockRequestBody } from '../src/converse.js';
+import { awsBedrockModel } from '../src/generate.js';
+import { fakeClient } from './mocks/bedrock-client.js';
 
 const tools = [
   { name: 'weather', description: 'Weather', inputSchema: { type: 'object' } },
@@ -56,6 +60,81 @@ describe('tool choice', () => {
         ?.toolChoice,
       { tool: { name: 'time' } }
     );
+  });
+
+  it('stops forcing the named tool once it has answered this turn', () => {
+    const called = [
+      user,
+      {
+        role: 'model',
+        content: [{ toolRequest: { name: 'time', ref: 't1', input: {} } }],
+      },
+      {
+        role: 'tool',
+        content: [{ toolResponse: { name: 'time', ref: 't1', output: '9am' } }],
+      },
+    ];
+    assert.deepEqual(
+      toolConfig({ config: { toolChoice: 'time' } }, called)?.toolChoice,
+      { auto: {} }
+    );
+    // Another tool's result doesn't count.
+    assert.deepEqual(
+      toolConfig({ config: { toolChoice: 'weather' } }, called)?.toolChoice,
+      { tool: { name: 'weather' } }
+    );
+    // A new user message starts a new turn, so the tool is forced again.
+    assert.deepEqual(
+      toolConfig({ config: { toolChoice: 'time' } }, [
+        ...called,
+        { role: 'model', content: [{ text: "It's 9am." }] },
+        { role: 'user', content: [{ text: 'And now?' }] },
+      ])?.toolChoice,
+      { tool: { name: 'time' } }
+    );
+  });
+
+  it("finishes Genkit's tool loop with a named tool", async () => {
+    let calls = 0;
+    const { client, sent } = fakeClient(() => {
+      calls++;
+      // Like Bedrock, call the tool whenever it is forced.
+      const forced = sent[sent.length - 1].input.toolConfig?.toolChoice?.tool;
+      return {
+        stopReason: forced ? 'tool_use' : 'end_turn',
+        output: {
+          message: {
+            role: 'assistant',
+            content: forced
+              ? [
+                  {
+                    toolUse: {
+                      toolUseId: `t${calls}`,
+                      name: 'time',
+                      input: {},
+                    },
+                  },
+                ]
+              : [{ text: "It's 9am." }],
+          },
+        },
+      };
+    });
+    const ai = genkit({});
+    const time = ai.defineTool(
+      { name: 'time', description: 'Time', inputSchema: z.object({}) },
+      async () => '9am'
+    );
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    ai.registry.registerAction('model', model);
+    const res = await ai.generate({
+      model: model.__action.name,
+      tools: [time],
+      prompt: 'What time is it?',
+      config: { toolChoice: 'time' },
+    });
+    assert.equal(res.text, "It's 9am.");
+    assert.equal(sent.length, 2);
   });
 
   it("rejects a tool name that isn't one of the request's tools", () => {
