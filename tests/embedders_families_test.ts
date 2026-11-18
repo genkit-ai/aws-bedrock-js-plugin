@@ -22,6 +22,7 @@ import {
   awsBedrockEmbedder,
   embedderFamily,
 } from '../src/aws_bedrock_embedders.js';
+import { baseModelId } from '../src/models.js';
 import { fakeClient, jsonBody } from './mocks/bedrock-client.js';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
@@ -205,6 +206,36 @@ describe('Nova', () => {
       }
     );
     assert.equal(res.embeddings.length, 2);
+  });
+});
+
+describe('shared model ID and media helpers', () => {
+  it('picks the family with the same prefix rules as chat models', () => {
+    for (const prefix of ['us', 'us-gov', 'eu', 'apac', 'jp', 'global']) {
+      const id = `${prefix}.cohere.embed-v4:0`;
+      assert.equal(baseModelId(id), 'cohere.embed-v4:0');
+      assert.equal(embedderFamily(id), 'cohere');
+    }
+  });
+
+  it("sends Nova videos in Converse's formats, spelling 3gp Nova's way", async () => {
+    const { client, sent } = fakeClient(() =>
+      jsonBody({ embeddings: [{ embedding: [1] }] })
+    );
+    const embed = awsBedrockEmbedder(
+      'amazon.nova-2-multimodal-embeddings-v1:0',
+      client
+    );
+    await embed({
+      input: [
+        { content: [{ media: { url: 'data:video/3gpp;base64,AAAA' } }] },
+        { content: [{ media: { url: 'data:video/quicktime;base64,AAAA' } }] },
+      ],
+    });
+    const formats = sent.map(
+      (s) => JSON.parse(s.input.body).singleEmbeddingParams.video.format
+    );
+    assert.deepEqual(formats, ['3gp', 'mov']);
   });
 });
 

@@ -1190,3 +1190,17 @@ export const SUPPORTED_AWS_BEDROCK_MODELS = (
     'cohere.rerank-v3-5:0': cohereRerank35V1,
   };
 };
+
+/**
+ * Leading cross-region inference-profile prefixes, such as `us.` in
+ * `us.anthropic.claude-sonnet-4-5-20250929-v1:0`.
+ */
+const INFERENCE_PROFILE_PREFIX = /^(us-gov|us|eu|apac|jp|au|ca|global)\./;
+
+/**
+ * Returns a model ID without its inference-profile prefix. Only used to look
+ * up capabilities; requests always send the full ID.
+ */
+export function baseModelId(modelId: string): string {
+  return modelId.replace(INFERENCE_PROFILE_PREFIX, '');
+}

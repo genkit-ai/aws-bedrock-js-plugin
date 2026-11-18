@@ -31,7 +31,9 @@ import {
 import { z } from 'genkit';
 import { embedder } from 'genkit/plugin';
 
+import { MIME_TO_IMAGE_FORMAT, MIME_TO_VIDEO_FORMAT } from './converse.js';
 import { toGenkitError } from './errors.js';
+import { baseModelId } from './models.js';
 
 export const TextEmbeddingConfigSchema = z.object({
   dimensions: z
@@ -178,7 +180,7 @@ type EmbedderFamily = 'titan-text' | 'titan-multimodal' | 'cohere' | 'nova';
  * inference-profile prefix.
  */
 export function embedderFamily(modelId: string): EmbedderFamily | undefined {
-  const id = modelId.replace(/^(us|eu|apac|jp|au|ca|global|us-gov)\./, '');
+  const id = baseModelId(modelId);
   if (id.startsWith('amazon.titan-embed-image')) return 'titan-multimodal';
   if (id.startsWith('amazon.titan-embed')) return 'titan-text';
   if (id.startsWith('cohere.embed')) return 'cohere';
@@ -191,24 +193,13 @@ const COHERE_BATCH_SIZE = 96;
 /** Requests in flight at once for families that embed one document per call. */
 const CONCURRENCY = 8;
 
-const IMAGE_FORMATS: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpeg',
-  'image/jpg': 'jpeg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-};
-const VIDEO_FORMATS: Record<string, string> = {
-  'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/x-matroska': 'mkv',
-  'video/webm': 'webm',
-  'video/x-flv': 'flv',
-  'video/mpeg': 'mpeg',
-  'video/mpg': 'mpg',
-  'video/x-ms-wmv': 'wmv',
-  'video/3gpp': '3gp',
-};
+/**
+ * Nova's video formats are Converse's, except that it spells 3GP "3gp".
+ */
+function novaVideoFormat(contentType: string): string | undefined {
+  const format = MIME_TO_VIDEO_FORMAT[contentType];
+  return format === 'three_gp' ? '3gp' : format;
+}
 
 /** A document's media, decoded from its data URL. */
 interface DocMedia {
@@ -373,7 +364,7 @@ async function embedCohere(
       return;
     }
     const media = docMedia(doc, i);
-    if (!media || !IMAGE_FORMATS[media.contentType]) {
+    if (!media || !MIME_TO_IMAGE_FORMAT[media.contentType]) {
       throw invalid(`Document ${i}: ${modelId} embeds text or images.`);
     }
     images.push({ index: i, media });
@@ -429,14 +420,14 @@ async function embedNova(
         truncationMode: options.truncate ?? 'END',
         value: doc.text,
       };
-    } else if (media && IMAGE_FORMATS[media.contentType]) {
+    } else if (media && MIME_TO_IMAGE_FORMAT[media.contentType]) {
       params.image = {
-        format: IMAGE_FORMATS[media.contentType],
+        format: MIME_TO_IMAGE_FORMAT[media.contentType],
         source: { bytes: media.base64 },
       };
-    } else if (media && VIDEO_FORMATS[media.contentType]) {
+    } else if (media && novaVideoFormat(media.contentType)) {
       params.video = {
-        format: VIDEO_FORMATS[media.contentType],
+        format: novaVideoFormat(media.contentType),
         source: { bytes: media.base64 },
         embeddingMode: 'AUDIO_VIDEO_COMBINED',
       };

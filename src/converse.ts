@@ -78,7 +78,7 @@ function toAwsBedrockTool(tool: ToolDefinition): Tool {
 /**
  * Map of MIME types to Bedrock image formats.
  */
-const MIME_TO_IMAGE_FORMAT: Record<string, ImageFormat> = {
+export const MIME_TO_IMAGE_FORMAT: Record<string, ImageFormat> = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
   'image/jpg': 'jpeg',
@@ -105,7 +105,7 @@ const MIME_TO_DOCUMENT_FORMAT: Record<string, DocumentFormat> = {
 /**
  * Map of MIME types to Bedrock video formats.
  */
-const MIME_TO_VIDEO_FORMAT: Record<string, VideoFormat> = {
+export const MIME_TO_VIDEO_FORMAT: Record<string, VideoFormat> = {
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',
   'video/x-matroska': 'mkv',
