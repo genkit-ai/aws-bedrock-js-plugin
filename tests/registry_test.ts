@@ -162,6 +162,34 @@ describe('references', () => {
     );
   });
 
+  it('declares toolChoice for models with tools, and only those', async () => {
+    assert.equal(
+      awsBedrock.model(`us.${SONNET_45}`).info?.supports?.toolChoice,
+      true
+    );
+    assert.equal(
+      awsBedrock.model('custom.new-model-v1:0').info?.supports?.toolChoice,
+      true
+    );
+    assert.equal(
+      awsBedrock.model('amazon.titan-text-express-v1').info?.supports
+        ?.toolChoice,
+      false
+    );
+    const { ai } = setup();
+    const action = await ai.registry.lookupAction(
+      `/model/aws-bedrock/global.${SONNET_45}`
+    );
+    assert.equal(
+      (
+        action?.__action.metadata?.model as {
+          supports?: { toolChoice?: boolean };
+        }
+      )?.supports?.toolChoice,
+      true
+    );
+  });
+
   it('builds embedder and reranker refs', () => {
     assert.equal(
       awsBedrock.embedder('cohere.embed-v4:0').name,

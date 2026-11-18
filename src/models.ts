@@ -1216,6 +1216,7 @@ export function baseModelId(modelId: string): string {
 export const DEFAULT_MODEL_SUPPORTS = {
   multiturn: true,
   tools: true,
+  toolChoice: true,
   media: true,
   systemRole: true,
   output: ['text', 'json'],
@@ -1252,8 +1253,14 @@ export function modelInfoFor(modelId: string): {
       supports: DEFAULT_MODEL_SUPPORTS,
     };
   }
+  const supports = {
+    ...DEFAULT_MODEL_SUPPORTS,
+    ...(ref.info.supports as object),
+  };
+  // Tool choice only applies to models that take tools.
+  supports.toolChoice = supports.tools === true;
   return {
     label: ref.info.label ?? `AWS Bedrock - ${modelId}`,
-    supports: { ...DEFAULT_MODEL_SUPPORTS, ...(ref.info.supports as object) },
+    supports,
   };
 }
