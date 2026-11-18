@@ -475,9 +475,7 @@ export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
   // versions, inference profiles) get a generic label.
   const known =
     SUPPORTED_EMBEDDING_MODELS[name] ??
-    SUPPORTED_EMBEDDING_MODELS[
-      name.replace(/^(us-gov|us|eu|apac|jp|au|ca|global)\./, '')
-    ];
+    SUPPORTED_EMBEDDING_MODELS[baseModelId(name)];
   const info = known?.info ?? {
     label: `AWS Bedrock - ${name}`,
     supports: { input: family === 'titan-text' ? ['text'] : ['text', 'image'] },
