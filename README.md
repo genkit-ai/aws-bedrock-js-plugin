@@ -235,7 +235,8 @@ const structuredOutputSchema = zodToJsonSchema(
     outputSchema.strict()
 );
 
-// Results in an error:
+// Results in an error: Genkit turns a plain zod object into a schema with
+// additionalProperties: true, which the plugin sends as-is, and Bedrock rejects it:
 // output_config.format.schema: For 'object' type, 'additionalProperties: true' is not supported. Please set 'additionalProperties' to false
 const response = await ai.generate({
   prompt: 'Tell me a joke.',
@@ -250,6 +251,14 @@ const response = await ai.generate({
   output: {
     format: 'json',
     jsonSchema: structuredOutputSchema
+  }
+});
+
+// Also works: a strict zod object passed as the schema
+const strictResponse = await ai.generate({
+  prompt: 'Tell me a joke.',
+  output: {
+    schema: outputSchema.strict()
   }
 });
 ```
@@ -411,7 +420,7 @@ const response = await ai.generate({
 await ai.generate({ model: 'aws-bedrock/openai.gpt-oss-20b-1:0', prompt: 'Hello!' });
 ```
 
-The plugin looks up a model's capabilities (tools, media, system prompt, structured output) by its ID without the inference-profile prefix, and sends the full ID to Bedrock. Models it doesn't know get modern Converse defaults. `awsBedrock.embedder()` and `awsBedrock.reranker()` work the same way for embedding and rerank models.
+The plugin looks up a model's capabilities (tools, media, system prompt, structured output) by its ID without the inference-profile prefix, and sends the full ID to Bedrock. Models it doesn't know get modern Converse defaults, except that they aren't declared to support a forced `toolChoice`. `awsBedrock.embedder()` and `awsBedrock.reranker()` work the same way for embedding and rerank models.
 
 You can also register models up front with the `customModels` option when initializing the plugin:
 
@@ -665,7 +674,7 @@ See the [Lambda example](./examples/lambda) for a complete working project with 
 |---|---|
 | Chat | Every Converse model: Anthropic Claude, Amazon Nova, Meta Llama, Mistral, Cohere Command, AI21 Jamba, Google Gemma and newer models by ID. Text, images, documents and video in; text, JSON, tool calls and reasoning out; streaming |
 | Embeddings | Titan Text v1/v2, Titan Multimodal, Cohere Embed v3/v4, Nova Multimodal Embeddings |
-| Reranking | Cohere Rerank 3.5, Amazon Rerank 1.0 |
+| Reranking | Cohere Rerank 3.5 |
 | Image generation | Titan Image Generator, Nova Canvas, Stable Diffusion XL, Stable Diffusion 3.5, Stable Image Core and Ultra |
 
 Your AWS account needs [model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) to each model in the region you call it from. Many newer models, including Claude 4.x, are only offered through cross-region inference profiles; see [Configuration with Inference Endpoint](#configuration-with-inference-endpoint).
@@ -674,8 +683,9 @@ Your AWS account needs [model access](https://docs.aws.amazon.com/bedrock/latest
 
 - Bedrock does not fetch remote media. Pass images, documents and videos as base64 data URLs or `s3://` URIs.
 - Converse has no "none" tool choice. With `toolChoice: 'none'`, no tools are sent and earlier tool calls and results reach the model as text.
-- `toolChoice: 'required'` and a named tool work only on models that support them, including Claude, Nova and Mistral Large. A named tool (`config.toolChoice`) is forced until it has answered since the last user message, then the choice is `auto`.
-- In JSON mode, a response cut off by `maxOutputTokens`, or one that isn't valid JSON, comes back as text with no data part, as with Genkit's other model plugins. Genkit then parses and validates `response.output` itself, so check `finishReason` (`'length'`) before trusting the output of a cut-off response.
+- `toolChoice: 'required'` and a named tool (`config.toolChoice`) are sent only to models that support them: Claude 3 and later, Nova and Mistral Large. Other models, and models the plugin doesn't know, get their tools with no `toolChoice` (Bedrock's default is `auto`). Both forced choices hold only until a tool result is in the conversation after the last user message, then the choice is `auto`, so Genkit's tool loop can finish.
+- Amazon Rerank 1.0 isn't supported: AWS documents it only for the `bedrock-agent-runtime` Rerank API, not InvokeModel.
+- In JSON mode, a response cut off by `maxOutputTokens`, or one that isn't valid JSON, comes back as text with no data part, as with Genkit's other model plugins. Empty output (for example when a guardrail intervenes) also comes back as text, not as an empty object. Genkit then parses and validates `response.output` itself, so check `finishReason` (`'length'`) before trusting the output of a cut-off response.
 - Image generation takes a text prompt; image-to-image tasks (inpainting, variations) aren't supported yet.
 - Embeddings and image generation call `InvokeModel` once per document or request, so large batches are bounded by your Bedrock quotas.
 
