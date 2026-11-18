@@ -542,6 +542,48 @@ const JSON_INSTRUCTION =
   'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.';
 
 /**
+ * Whether the request turns tools off: toolChoice "none" with no tool named
+ * in config.toolChoice.
+ */
+function toolsDisabled(
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>
+): boolean {
+  return !request.config?.toolChoice && request.toolChoice === 'none';
+}
+
+/**
+ * Rewrites the tool calls and results in a conversation as text.
+ *
+ * Converse has no "none" tool choice, and it rejects toolUse and toolResult
+ * blocks unless tools are sent. Sending the tools would let the model call
+ * them, so for toolChoice "none" the history's tool blocks become text and
+ * no tools are sent: the model still sees what was called and returned, but
+ * can't call anything.
+ */
+function toolBlocksToText(messages: AwsMessge[]): AwsMessge[] {
+  return messages.map((m) => ({
+    ...m,
+    content: m.content?.map((block): ContentBlock => {
+      if (block.toolUse) {
+        const { name, toolUseId, input } = block.toolUse;
+        return {
+          text: `[Called tool ${name} (call ${toolUseId}) with input: ${JSON.stringify(input ?? {})}]`,
+        };
+      }
+      if (block.toolResult) {
+        const result = (block.toolResult.content ?? [])
+          .map((c) => c.text ?? JSON.stringify(c.json ?? c))
+          .join('\n');
+        return {
+          text: `[Result of tool call ${block.toolResult.toolUseId}: ${result}]`,
+        };
+      }
+      return block;
+    }),
+  }));
+}
+
+/**
  * Whether a result from the named tool is in the history after the user's
  * last text or media message, i.e. the tool was already called this turn.
  */
@@ -564,26 +606,17 @@ function namedToolAnswered(messages: MessageData[], name: string): boolean {
  * config.toolChoice names one tool the model must call, until that tool's
  * result is in the history after the user's last message; from then on the
  * choice is auto, so Genkit's tool loop can finish. Converse has no "none"
- * choice, so toolChoice "none" leaves the tools out, unless the conversation
- * already holds tool calls or results, which Converse only accepts alongside
- * a toolConfig.
+ * choice, so toolChoice "none" leaves the tools out (see toolsDisabled).
  */
 function toAwsBedrockToolConfig(
   request: GenerateRequest<typeof AwsBedrockConfigSchema>,
-  modelSupportsTools: boolean,
-  messages: AwsMessge[]
+  modelSupportsTools: boolean
 ): ToolConfiguration | undefined {
   const tools = request.tools ?? [];
   if (!modelSupportsTools || tools.length === 0) return undefined;
 
   const named = request.config?.toolChoice;
-  if (!named && request.toolChoice === 'none') {
-    const hasToolBlocks = messages.some((m) =>
-      m.content?.some((c) => c.toolUse || c.toolResult)
-    );
-    if (!hasToolBlocks) return undefined;
-    return { tools: tools.map(toAwsBedrockTool) };
-  }
+  if (toolsDisabled(request)) return undefined;
 
   let toolChoice: ToolChoice | undefined;
   if (named) {
@@ -641,7 +674,10 @@ export function toAwsBedrockRequestBody(
   const messages = systemRole
     ? requestMessages
     : simulateSystemPrompt(requestMessages);
-  const awsBedrockMessages = toAwsBedrockMessages(messages);
+  let awsBedrockMessages = toAwsBedrockMessages(messages);
+  if (toolsDisabled(request)) {
+    awsBedrockMessages = toolBlocksToText(awsBedrockMessages);
+  }
 
   const awsBedrockSystemMessage = systemRole
     ? getSystemMessage(requestMessages) || []
@@ -658,8 +694,7 @@ export function toAwsBedrockRequestBody(
       awsBedrockSystemMessage.length > 0 ? awsBedrockSystemMessage : undefined,
     toolConfig: toAwsBedrockToolConfig(
       request,
-      model.info.supports.tools === true,
-      awsBedrockMessages
+      model.info.supports.tools === true
     ),
     modelId: modelString,
     outputConfig:

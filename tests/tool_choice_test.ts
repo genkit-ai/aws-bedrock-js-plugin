@@ -151,22 +151,41 @@ describe('tool choice', () => {
     assert.equal(toolConfig({ toolChoice: 'none' }), undefined);
   });
 
-  it('keeps the tools for none when the conversation has tool calls', () => {
-    const config = toolConfig({ toolChoice: 'none' }, [
-      user,
+  it('sends tool history as text and no tools for none', () => {
+    const body = toAwsBedrockRequestBody(
+      'amazon.nova-lite-v1:0',
       {
-        role: 'model',
-        content: [{ toolRequest: { name: 'weather', ref: 't1', input: {} } }],
-      },
-      {
-        role: 'tool',
-        content: [
-          { toolResponse: { name: 'weather', ref: 't1', output: 'sunny' } },
+        tools,
+        toolChoice: 'none',
+        messages: [
+          user,
+          {
+            role: 'model',
+            content: [
+              { toolRequest: { name: 'weather', ref: 't1', input: { c: 1 } } },
+            ],
+          },
+          {
+            role: 'tool',
+            content: [
+              { toolResponse: { name: 'weather', ref: 't1', output: 'sunny' } },
+            ],
+          },
         ],
       },
+      'us'
+    );
+    // Without tools the model can't call one; Converse would reject tool
+    // blocks without a toolConfig, so they are sent as text.
+    assert.equal(body.toolConfig, undefined);
+    const blocks = body.messages!.flatMap((m) => m.content!);
+    assert.ok(blocks.every((b) => !b.toolUse && !b.toolResult));
+    assert.deepEqual(body.messages![1].content, [
+      { text: '[Called tool weather (call t1) with input: {"c":1}]' },
     ]);
-    assert.equal(config?.tools?.length, 2);
-    assert.equal(config?.toolChoice, undefined);
+    assert.deepEqual(body.messages![2].content, [
+      { text: '[Result of tool call t1: {"result":"sunny"}]' },
+    ]);
   });
 
   it('ignores tool choice for models without tool support', () => {
