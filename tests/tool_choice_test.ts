@@ -138,6 +138,78 @@ describe('tool choice', () => {
     assert.equal(sent.length, 2);
   });
 
+  it('stops forcing any tool once a tool has answered this turn', () => {
+    const called = [
+      user,
+      {
+        role: 'model',
+        content: [{ toolRequest: { name: 'time', ref: 't1', input: {} } }],
+      },
+      {
+        role: 'tool',
+        content: [{ toolResponse: { name: 'time', ref: 't1', output: '9am' } }],
+      },
+    ];
+    assert.deepEqual(
+      toolConfig({ toolChoice: 'required' }, called)?.toolChoice,
+      { auto: {} }
+    );
+    // A new user message starts a new turn, so a call is required again.
+    assert.deepEqual(
+      toolConfig({ toolChoice: 'required' }, [
+        ...called,
+        { role: 'model', content: [{ text: "It's 9am." }] },
+        { role: 'user', content: [{ text: 'And now?' }] },
+      ])?.toolChoice,
+      { any: {} }
+    );
+  });
+
+  it("finishes Genkit's tool loop with toolChoice 'required'", async () => {
+    let calls = 0;
+    const { client, sent } = fakeClient(() => {
+      calls++;
+      // Like Bedrock, call a tool whenever one is required.
+      const forced = sent[sent.length - 1].input.toolConfig?.toolChoice?.any;
+      return {
+        stopReason: forced ? 'tool_use' : 'end_turn',
+        output: {
+          message: {
+            role: 'assistant',
+            content: forced
+              ? [
+                  {
+                    toolUse: {
+                      toolUseId: `t${calls}`,
+                      name: 'time',
+                      input: {},
+                    },
+                  },
+                ]
+              : [{ text: "It's 9am." }],
+          },
+        },
+      };
+    });
+    const ai = genkit({});
+    const time = ai.defineTool(
+      { name: 'time', description: 'Time', inputSchema: z.object({}) },
+      async () => '9am'
+    );
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    ai.registry.registerAction('model', model);
+    const res = await ai.generate({
+      model: model.__action.name,
+      tools: [time],
+      prompt: 'What time is it?',
+      toolChoice: 'required',
+    });
+    assert.equal(res.text, "It's 9am.");
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent[0].input.toolConfig.toolChoice, { any: {} });
+    assert.deepEqual(sent[1].input.toolConfig.toolChoice, { auto: {} });
+  });
+
   it("rejects a tool name that isn't one of the request's tools", () => {
     assert.throws(
       () => toolConfig({ config: { toolChoice: 'stocks' } }),
@@ -199,15 +271,67 @@ describe('tool choice', () => {
 });
 
 describe('toolChoice support', () => {
-  it('is declared by every model that supports tools, and only those', () => {
-    for (const [id, ref] of Object.entries(SUPPORTED_AWS_BEDROCK_MODELS())) {
+  // Bedrock documents forced tool choice for Anthropic Claude 3+, Amazon
+  // Nova and Mistral Large. Everything else gets no toolChoice.
+  const supportsToolChoice = (id: string) =>
+    /\banthropic\.claude-/.test(id) ||
+    /\bamazon\.nova-(?!canvas|reel)/.test(id) ||
+    /\bmistral\.mistral-large-/.test(id);
+
+  it('is declared per family: Claude, Nova and Mistral Large only', () => {
+    let declared = 0;
+    for (const [id, ref] of Object.entries(
+      SUPPORTED_AWS_BEDROCK_MODELS('us')
+    )) {
       const supports = ref.info?.supports;
+      if (supports?.toolChoice === true) {
+        declared++;
+        assert.equal(supports.tools, true, `${id} needs tools`);
+      }
       assert.equal(
         supports?.toolChoice === true,
-        supports?.tools === true,
+        supportsToolChoice(id) && supports?.tools === true,
         `${id} toolChoice support`
       );
     }
+    assert.ok(declared > 0);
+  });
+
+  it('is not declared for unknown models', () => {
+    assert.notEqual(
+      awsBedrockModel('acme.unknown-v1:0', fakeClient(() => ({})).client, 'us')
+        .__action.metadata?.model?.supports?.toolChoice,
+      true
+    );
+  });
+
+  it('sends no forced choice to models that do not support it', () => {
+    for (const id of [
+      'meta.llama3-70b-instruct-v1:0',
+      'cohere.command-r-v1:0',
+    ]) {
+      for (const extra of [
+        { toolChoice: 'required' },
+        { toolChoice: 'auto' },
+        { config: { toolChoice: 'time' } },
+      ]) {
+        const body = toAwsBedrockRequestBody(
+          id,
+          { messages: [user], tools, ...extra },
+          'us'
+        );
+        assert.equal(body.toolConfig?.tools?.length, 2, id);
+        assert.equal(body.toolConfig?.toolChoice, undefined, id);
+      }
+    }
+    // An unknown model gets tools but no toolChoice, too.
+    const unknown = toAwsBedrockRequestBody(
+      'acme.unknown-v1:0',
+      { messages: [user], tools, toolChoice: 'required' },
+      'us'
+    );
+    assert.equal(unknown.toolConfig?.tools?.length, 2);
+    assert.equal(unknown.toolConfig?.toolChoice, undefined);
   });
 
   it('is declared on the registered model actions', () => {
@@ -215,6 +339,15 @@ describe('toolChoice support', () => {
     const action = awsBedrockModel('us.amazon.nova-pro-v1:0', client, 'us');
     assert.equal(
       (action.__action.metadata as any)?.model?.supports?.toolChoice,
+      true
+    );
+    const llama = awsBedrockModel(
+      'us.meta.llama3-3-70b-instruct-v1:0',
+      client,
+      'us'
+    );
+    assert.notEqual(
+      (llama.__action.metadata as any)?.model?.supports?.toolChoice,
       true
     );
   });

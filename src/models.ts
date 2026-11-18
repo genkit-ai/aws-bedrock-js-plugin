@@ -174,7 +174,6 @@ export const googleGemma312BIt = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -208,7 +207,6 @@ export const cohereCommandRV1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
@@ -225,7 +223,6 @@ export const cohereCommandRPlusV1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
@@ -650,7 +647,6 @@ export const mistralMagistralSmall2509 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -668,7 +664,6 @@ export const mistralMinistral314BInstruct = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -686,7 +681,6 @@ export const mistralMinistral38BInstruct = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -704,7 +698,6 @@ export const mistralMinistral33BInstruct = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -740,7 +733,6 @@ export const pixtralLarge2502V1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -774,7 +766,6 @@ export const mistralSmall2402V1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
@@ -823,7 +814,6 @@ export const ai21Jamba15LargeV1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
@@ -840,7 +830,6 @@ export const ai21Jamba15MiniV1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
@@ -908,7 +897,6 @@ export const metaLlama4Maverick17BInstruct = (
       supports: {
         multiturn: true,
         tools: true,
-        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -929,7 +917,6 @@ export const metaLlama4Scout17BInstruct = (
       supports: {
         multiturn: true,
         tools: true,
-        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -950,7 +937,6 @@ export const metaLlama3370BInstruct = (
       supports: {
         multiturn: true,
         tools: true,
-        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -971,7 +957,6 @@ export const metaLlama3211BInstruct = (
       supports: {
         multiturn: true,
         tools: true,
-        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -1032,7 +1017,6 @@ export const metaLlama3290BInstruct = (
       supports: {
         multiturn: true,
         tools: true,
-        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -1073,7 +1057,6 @@ export const metaLlama318BInstruct = (
       supports: {
         multiturn: true,
         tools: true,
-        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -1091,7 +1074,6 @@ export const metaLlama370BInstruct = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
@@ -1108,7 +1090,6 @@ export const metaLlama38BInstruct = modelRef({
     supports: {
       multiturn: true,
       tools: true,
-      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],

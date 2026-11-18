@@ -584,10 +584,11 @@ function toolBlocksToText(messages: AwsMessge[]): AwsMessge[] {
 }
 
 /**
- * Whether a result from the named tool is in the history after the user's
- * last text or media message, i.e. the tool was already called this turn.
+ * Whether a tool result (from the named tool, or from any tool when no name
+ * is given) is in the history after the user's last text or media message,
+ * i.e. a tool was already called this turn.
  */
-function namedToolAnswered(messages: MessageData[], name: string): boolean {
+function toolAnswered(messages: MessageData[], name?: string): boolean {
   let lastUserTurn = -1;
   messages.forEach((m, i) => {
     if (m.role === 'user' && m.content.some((p) => p.text || p.media)) {
@@ -596,21 +597,29 @@ function namedToolAnswered(messages: MessageData[], name: string): boolean {
   });
   return messages
     .slice(lastUserTurn + 1)
-    .some((m) => m.content.some((p) => p.toolResponse?.name === name));
+    .some((m) =>
+      m.content.some(
+        (p) =>
+          p.toolResponse && (name === undefined || p.toolResponse.name === name)
+      )
+    );
 }
 
 /**
  * Builds the Converse toolConfig from the request's tools and tool choice.
  *
  * Genkit's toolChoice maps onto Converse as auto -> auto and required -> any.
- * config.toolChoice names one tool the model must call, until that tool's
- * result is in the history after the user's last message; from then on the
- * choice is auto, so Genkit's tool loop can finish. Converse has no "none"
+ * config.toolChoice names one tool the model must call. Both forced choices
+ * hold only until a tool result (the named tool's, for a named choice) is in
+ * the history after the user's last message; from then on the choice is
+ * auto, so Genkit's tool loop can finish. Models that don't declare
+ * supports.toolChoice get no toolChoice (Bedrock's default is auto). Converse has no "none"
  * choice, so toolChoice "none" leaves the tools out (see toolsDisabled).
  */
 function toAwsBedrockToolConfig(
   request: GenerateRequest<typeof AwsBedrockConfigSchema>,
-  modelSupportsTools: boolean
+  modelSupportsTools: boolean,
+  modelSupportsToolChoice: boolean
 ): ToolConfiguration | undefined {
   const tools = request.tools ?? [];
   if (!modelSupportsTools || tools.length === 0) return undefined;
@@ -630,16 +639,23 @@ function toAwsBedrockToolConfig(
     // forcing the tool every turn would loop until Genkit gives up. Once
     // the named tool has answered since the user's last message, the model
     // is left to answer (auto).
-    toolChoice = namedToolAnswered(request.messages, named)
+    toolChoice = toolAnswered(request.messages, named)
       ? { auto: {} }
       : { tool: { name: named } };
   } else if (request.toolChoice === 'required') {
-    toolChoice = { any: {} };
+    // Same rule as a named tool: Genkit resends toolChoice after each tool
+    // result, and forcing a call every turn would never let the loop end.
+    toolChoice = toolAnswered(request.messages) ? { auto: {} } : { any: {} };
   } else if (request.toolChoice === 'auto') {
     toolChoice = { auto: {} };
   }
 
-  return { tools: tools.map(toAwsBedrockTool), toolChoice };
+  // Not every Bedrock model accepts a forced choice (any/tool). Auto is the
+  // default, so models without toolChoice support get no toolChoice at all.
+  return {
+    tools: tools.map(toAwsBedrockTool),
+    toolChoice: modelSupportsToolChoice ? toolChoice : undefined,
+  };
 }
 
 export function toAwsBedrockRequestBody(
@@ -694,7 +710,8 @@ export function toAwsBedrockRequestBody(
       awsBedrockSystemMessage.length > 0 ? awsBedrockSystemMessage : undefined,
     toolConfig: toAwsBedrockToolConfig(
       request,
-      model.info.supports.tools === true
+      model.info.supports.tools === true,
+      model.info.supports.toolChoice === true
     ),
     modelId: modelString,
     outputConfig:

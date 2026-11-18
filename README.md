@@ -211,9 +211,9 @@ const result = await ai.generate({
 });
 ```
 
-The named tool is forced until its result is in the conversation after the last user message. After that the choice is `auto`, so the model can answer with the tool's result instead of calling it again on every turn of Genkit's tool loop.
+`'required'` and the named tool are forced only until a tool result (the named tool's, for a named choice) is in the conversation after the last user message. After that the choice is `auto`, so the model can answer with the tool's result instead of being forced to call a tool again on every turn of Genkit's tool loop.
 
-Bedrock supports `'required'` and a named tool only on some models, including Anthropic Claude, Amazon Nova and Mistral Large. Converse has no "none" choice, and it rejects tool calls and results in the conversation unless tools are sent. So with `'none'`, earlier tool calls and results are sent to the model as text, and no tools are sent: the model sees what was called and returned but can't call a tool.
+Bedrock accepts a forced choice (`'required'` or a named tool) only on some models, and the plugin declares `supports.toolChoice` for exactly those: Anthropic Claude 3 and later, Amazon Nova and Mistral Large. Other models (Llama, Cohere Command, AI21, Gemma, the other Mistral models) and models the plugin doesn't know are not declared, so Genkit warns that they don't support `toolChoice`, and the plugin sends their tools with no `toolChoice`. Bedrock's default is `auto`, so tools still work there; `'required'` and named choices just aren't enforced. Converse has no "none" choice, and it rejects tool calls and results in the conversation unless tools are sent. So with `'none'`, earlier tool calls and results are sent to the model as text, and no tools are sent: the model sees what was called and returned but can't call a tool.
 
 ### Structured Output
 
