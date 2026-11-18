@@ -214,7 +214,10 @@ export async function converseStream(
 
   return {
     finishReason: fromAwsBedrockStopReason(stopReason),
-    message: { role: 'model', content: finalContent(content, jsonMode) },
+    message: {
+      role: 'model',
+      content: finalContent(content, jsonMode, stopReason),
+    },
     usage: fromAwsBedrockUsage(metadata?.usage),
     custom: metadata ? { metrics: metadata.metrics } : {},
   };

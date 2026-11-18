@@ -137,6 +137,18 @@ describe('stream reassembly', () => {
     assert.deepEqual(res.message?.content, [{ data: { n: 1 } }]);
   });
 
+  it('returns cut-off JSON as text, not partial data', async () => {
+    const res = await run(
+      [
+        textDelta(0, '{"items": [1'),
+        textDelta(0, ', 2]}'),
+        { messageStop: { stopReason: 'max_tokens' } },
+      ],
+      { output: { format: 'json' } }
+    );
+    assert.deepEqual(res.message?.content, [{ text: '{"items": [1, 2]}' }]);
+  });
+
   it("fails on tool input that isn't valid JSON", async () => {
     await assert.rejects(
       run([toolStart(0, 't1', 'weather'), toolDelta(0, '{"city":'), stop(0)]),
