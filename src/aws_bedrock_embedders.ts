@@ -377,36 +377,40 @@ async function embedCohere(
     images.push({ index: i, media });
   });
 
-  const batches: number[][] = [];
+  // Text batches and images (Bedrock takes one image per Cohere request)
+  // share one queue, so neither waits for the other and at most CONCURRENCY
+  // requests are in flight. Each result goes back to its document's slot.
+  const tasks: (() => Promise<void>)[] = [];
   for (let start = 0; start < texts.length; start += COHERE_BATCH_SIZE) {
-    batches.push(texts.slice(start, start + COHERE_BATCH_SIZE));
-  }
-  await mapLimit(batches, async (batch) => {
-    const res = await invoke(client, modelId, {
-      ...common,
-      texts: batch.map((i) => docs[i].text),
-      input_type: options.inputType ?? 'search_document',
-      truncate: options.truncate ?? 'END',
-    });
-    const vectors = cohereVectors(res);
-    if (vectors.length !== batch.length) {
-      throw new GenkitError({
-        status: 'INTERNAL',
-        message: `AWS Bedrock returned ${vectors.length} Cohere embeddings for ${batch.length} texts.`,
+    const batch = texts.slice(start, start + COHERE_BATCH_SIZE);
+    tasks.push(async () => {
+      const res = await invoke(client, modelId, {
+        ...common,
+        texts: batch.map((i) => docs[i].text),
+        input_type: options.inputType ?? 'search_document',
+        truncate: options.truncate ?? 'END',
       });
-    }
-    batch.forEach((docIndex, j) => (out[docIndex] = vectors[j]));
-  });
-
-  // Bedrock takes one image per Cohere request.
-  await mapLimit(images, async ({ index, media }) => {
-    const res = await invoke(client, modelId, {
-      ...common,
-      images: [media.dataUrl],
-      input_type: 'image',
+      const vectors = cohereVectors(res);
+      if (vectors.length !== batch.length) {
+        throw new GenkitError({
+          status: 'INTERNAL',
+          message: `AWS Bedrock returned ${vectors.length} Cohere embeddings for ${batch.length} texts.`,
+        });
+      }
+      batch.forEach((docIndex, j) => (out[docIndex] = vectors[j]));
     });
-    out[index] = vector(cohereVectors(res)[0], `document ${index}`);
-  });
+  }
+  for (const { index, media } of images) {
+    tasks.push(async () => {
+      const res = await invoke(client, modelId, {
+        ...common,
+        images: [media.dataUrl],
+        input_type: 'image',
+      });
+      out[index] = vector(cohereVectors(res)[0], `document ${index}`);
+    });
+  }
+  await mapLimit(tasks, (task) => task());
   return out;
 }
 

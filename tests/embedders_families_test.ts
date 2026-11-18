@@ -178,6 +178,67 @@ describe('Cohere', () => {
   });
 });
 
+describe('Cohere concurrency', () => {
+  it("doesn't make images wait for text batches", async () => {
+    let imageStarted!: () => void;
+    const imageSeen = new Promise<void>((r) => (imageStarted = r));
+    const { client } = fakeClient(async (c) => {
+      const body = JSON.parse(c.input.body);
+      if (body.images) {
+        imageStarted();
+        return jsonBody({ embeddings: [[9]] });
+      }
+      // The text batch only answers once an image request has started.
+      await Promise.race([
+        imageSeen,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('images waited for text')), 500)
+        ),
+      ]);
+      return jsonBody({ embeddings: body.texts.map(() => [1]) });
+    });
+    const res = await awsBedrockEmbedder(
+      'cohere.embed-v4:0',
+      client
+    )({ input: [text('a'), image(), text('b')] });
+    assert.deepEqual(
+      res.embeddings.map((e) => e.embedding[0]),
+      [1, 9, 1]
+    );
+  });
+
+  it('keeps at most 8 requests in flight and the input order', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const { client, sent } = fakeClient(async (c) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      const body = JSON.parse(c.input.body);
+      return jsonBody({
+        embeddings: body.images
+          ? [[-1]]
+          : body.texts.map((t: string) => [Number(t)]),
+      });
+    });
+    const input = [
+      ...Array.from({ length: 200 }, (_, i) => text(String(i))),
+      ...Array.from({ length: 20 }, () => image()),
+    ];
+    const res = await awsBedrockEmbedder(
+      'cohere.embed-v4:0',
+      client
+    )({ input });
+    assert.equal(sent.length, 3 + 20);
+    assert.ok(maxInFlight <= 8, `${maxInFlight} requests in flight`);
+    assert.deepEqual(
+      res.embeddings.map((e) => e.embedding[0]),
+      [...Array.from({ length: 200 }, (_, i) => i), ...Array(20).fill(-1)]
+    );
+  });
+});
+
 describe('Nova', () => {
   it('sends the single-embedding request for text and images', async () => {
     const { client, sent } = fakeClient(() =>
