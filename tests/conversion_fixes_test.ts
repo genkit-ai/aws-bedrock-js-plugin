@@ -207,17 +207,13 @@ describe('system prompt', () => {
   const user = { role: 'user' as const, content: [{ text: 'hi' }] };
 
   it('sends every system message and part', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        messages: [
-          { role: 'system', content: [{ text: 'one' }, { text: 'two' }] },
-          { role: 'system', content: [{ text: 'three' }] },
-          user,
-        ],
-      },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [
+        { role: 'system', content: [{ text: 'one' }, { text: 'two' }] },
+        { role: 'system', content: [{ text: 'three' }] },
+        user,
+      ],
+    });
     assert.deepEqual(body.system, [
       { text: 'one' },
       { text: 'two' },
@@ -226,29 +222,24 @@ describe('system prompt', () => {
   });
 
   it('adds no instructions of its own outside JSON mode', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      { messages: [user] },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [user],
+    });
     assert.equal(body.system, undefined);
   });
 
   it('still asks for JSON in JSON mode', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      { messages: [user], output: { format: 'json' } },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [user],
+      output: { format: 'json' },
+    });
     assert.match(body.system![0].text!, /JSON/);
   });
 
   it('simulates the system prompt for models without a system role', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.titan-text-express-v1',
-      { messages: [{ role: 'system', content: [{ text: 'be brief' }] }, user] },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.titan-text-express-v1', {
+      messages: [{ role: 'system', content: [{ text: 'be brief' }] }, user],
+    });
     assert.equal(body.system, undefined);
     assert.deepEqual(body.messages, [
       {
@@ -261,11 +252,10 @@ describe('system prompt', () => {
   });
 
   it('asks for JSON in the simulated system prompt too', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.titan-text-express-v1',
-      { messages: [user], output: { format: 'json' } },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.titan-text-express-v1', {
+      messages: [user],
+      output: { format: 'json' },
+    });
     assert.equal(body.system, undefined);
     assert.match(body.messages![0].content![1].text!, /JSON/);
   });
@@ -440,8 +430,7 @@ describe('errors', () => {
     }));
     const res = await awsBedrockModel(
       'amazon.nova-lite-v1:0',
-      ok.client,
-      'us'
+      ok.client
     )({
       messages: [{ role: 'user', content: [{ text: 'hi' }] }],
     });
@@ -453,8 +442,7 @@ describe('errors', () => {
     await assert.rejects(
       awsBedrockModel(
         'amazon.nova-lite-v1:0',
-        failing.client,
-        'us'
+        failing.client
       )({
         messages: [{ role: 'user', content: [{ text: 'hi' }] }],
       }),

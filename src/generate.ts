@@ -31,8 +31,7 @@ import { converseStream } from './stream.js';
 
 export function awsBedrockModel(
   name: string,
-  client: BedrockRuntimeClient,
-  inferenceRegion: string
+  client: BedrockRuntimeClient
 ): ModelAction<typeof AwsBedrockConfigSchema> {
   const info = modelInfoFor(name);
   const modelInfo = {
@@ -56,7 +55,7 @@ export function awsBedrockModel(
         abortSignal: AbortSignal;
       }
     ) => {
-      const body = toAwsBedrockRequestBody(name, request, inferenceRegion);
+      const body = toAwsBedrockRequestBody(name, request);
       const jsonMode =
         request.output?.format === 'json' ||
         request.output?.contentType === 'application/json';

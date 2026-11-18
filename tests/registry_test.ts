@@ -18,6 +18,8 @@ import * as assert from 'assert';
 import { genkit } from 'genkit';
 import { describe, it } from 'node:test';
 
+import { toAwsBedrockRequestBody } from '../src/converse.js';
+import { awsBedrockModel } from '../src/generate.js';
 import { awsBedrock } from '../src/index.js';
 import { baseModelId, modelInfoFor } from '../src/models.js';
 import { __testClient, type PluginOptions } from '../src/types.js';
@@ -66,6 +68,14 @@ describe('capability lookup', () => {
     assert.equal(info.label, 'AWS Bedrock - us.example.new-model-v9:0');
     assert.deepEqual(info.supports.output, ['text', 'json']);
     assert.equal(info.supports.tools, true);
+  });
+});
+
+describe('inference region', () => {
+  it("isn't threaded through the chat model, which looks capabilities up by ID", () => {
+    // Only registration needs the region (for the default model IDs).
+    assert.equal(awsBedrockModel.length, 2);
+    assert.equal(toAwsBedrockRequestBody.length, 2);
   });
 });
 

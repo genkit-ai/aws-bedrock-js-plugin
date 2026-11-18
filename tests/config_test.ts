@@ -59,25 +59,21 @@ describe('AwsBedrockConfigSchema', () => {
 
 describe('Bedrock request fields', () => {
   it('sends the Bedrock config fields on the request', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        messages: [user],
-        config: {
-          additionalModelRequestFields: { inferenceConfig: { topK: 20 } },
-          additionalModelResponseFieldPaths: ['/stop_sequence'],
-          guardrailConfig: {
-            guardrailIdentifier: 'g',
-            guardrailVersion: '1',
-            trace: 'enabled',
-          },
-          performanceConfig: { latency: 'optimized' },
-          serviceTier: 'flex',
-          requestMetadata: { team: 'search' },
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [user],
+      config: {
+        additionalModelRequestFields: { inferenceConfig: { topK: 20 } },
+        additionalModelResponseFieldPaths: ['/stop_sequence'],
+        guardrailConfig: {
+          guardrailIdentifier: 'g',
+          guardrailVersion: '1',
+          trace: 'enabled',
         },
+        performanceConfig: { latency: 'optimized' },
+        serviceTier: 'flex',
+        requestMetadata: { team: 'search' },
       },
-      'us'
-    );
+    });
     assert.deepEqual(body.additionalModelRequestFields, {
       inferenceConfig: { topK: 20 },
     });
@@ -95,11 +91,9 @@ describe('Bedrock request fields', () => {
   });
 
   it("leaves the fields out when they aren't set", () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      { messages: [user] },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [user],
+    });
     for (const key of [
       'additionalModelRequestFields',
       'guardrailConfig',
@@ -123,8 +117,7 @@ describe('Bedrock request fields', () => {
     }));
     await awsBedrockModel(
       'amazon.nova-lite-v1:0',
-      client,
-      'us'
+      client
     )({
       messages: [user],
       config: { guardrailConfig: guardrail },
@@ -139,11 +132,7 @@ describe('Bedrock request fields', () => {
     const { client, sent } = fakeClient(() =>
       streamOf([{ messageStop: { stopReason: 'end_turn' } }])
     );
-    await awsBedrockModel(
-      'amazon.nova-lite-v1:0',
-      client,
-      'us'
-    )(
+    await awsBedrockModel('amazon.nova-lite-v1:0', client)(
       { messages: [user], config: { guardrailConfig: guardrail } },
       { onChunk: () => {} }
     );
@@ -153,30 +142,26 @@ describe('Bedrock request fields', () => {
 
 describe('prompt-cache points', () => {
   it('adds a cache point after parts that ask for one', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        messages: [
-          {
-            role: 'system',
-            content: [
-              { text: 'long instructions', metadata: { cachePoint: true } },
-            ],
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                text: 'long document',
-                metadata: { cachePoint: { ttl: '1h' } },
-              },
-              { text: 'question' },
-            ],
-          },
-        ],
-      },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [
+        {
+          role: 'system',
+          content: [
+            { text: 'long instructions', metadata: { cachePoint: true } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              text: 'long document',
+              metadata: { cachePoint: { ttl: '1h' } },
+            },
+            { text: 'question' },
+          ],
+        },
+      ],
+    });
     assert.deepEqual(body.system, [
       { text: 'long instructions' },
       { cachePoint: { type: 'default' } },

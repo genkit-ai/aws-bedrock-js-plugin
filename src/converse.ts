@@ -748,11 +748,7 @@ function toAwsBedrockToolConfig(
 
 export function toAwsBedrockRequestBody(
   modelName: string,
-  request: GenerateRequest<typeof AwsBedrockConfigSchema>,
-  // Kept so existing callers still compile. Capabilities are now looked up
-  // by model ID, whatever its inference-profile prefix.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  inferenceRegion?: string
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>
 ) {
   const supports = modelInfoFor(modelName).supports;
   const systemRole = supports.systemRole === true;

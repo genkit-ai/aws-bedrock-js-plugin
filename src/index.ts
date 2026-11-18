@@ -322,7 +322,7 @@ export function defineAwsBedrockModel(
   typeof AwsBedrockConfigSchema | typeof ImageGenerationConfigSchema
 > {
   // Same routing as customModels and resolve: image IDs get the image model.
-  return modelFor(name, clientFor(options), inferenceRegionFor(options));
+  return modelFor(name, clientFor(options));
 }
 
 /** Strips the plugin's namespace from an action name. */
@@ -331,14 +331,10 @@ function actionId(name: string): string {
 }
 
 /** Builds the model action for any Bedrock model ID. */
-function modelFor(
-  id: string,
-  client: BedrockRuntimeClient,
-  inferenceRegion: string
-) {
+function modelFor(id: string, client: BedrockRuntimeClient) {
   return imageFamily(id)
     ? awsBedrockImageModel(id, client)
-    : awsBedrockModel(id, client, inferenceRegion);
+    : awsBedrockModel(id, client);
 }
 
 function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
@@ -354,7 +350,7 @@ function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
       for (const name of Object.keys(
         SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)
       )) {
-        actions.push(awsBedrockModel(name, client, inferenceRegion));
+        actions.push(awsBedrockModel(name, client));
       }
 
       // Register custom models if provided, skipping ones registered below
@@ -365,7 +361,7 @@ function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
       ]);
       for (const name of new Set(options?.customModels ?? [])) {
         if (registered.has(name)) continue;
-        actions.push(modelFor(name, client, inferenceRegion));
+        actions.push(modelFor(name, client));
       }
 
       // Register image models
@@ -396,7 +392,7 @@ function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
         case 'model':
           // Rerank and embedding models can't be called through generate().
           if (id.includes('rerank') || embedderFamily(id)) return undefined;
-          return modelFor(id, client, inferenceRegion);
+          return modelFor(id, client);
         case 'embedder':
           return embedderFamily(id)
             ? awsBedrockEmbedder(id, client)

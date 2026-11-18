@@ -32,11 +32,11 @@ const tools = [
 const user = { role: 'user' as const, content: [{ text: 'hi' }] };
 
 function toolConfig(extra: Record<string, unknown>, messages: any[] = [user]) {
-  return toAwsBedrockRequestBody(
-    'amazon.nova-lite-v1:0',
-    { messages, tools, ...extra },
-    'us'
-  ).toolConfig;
+  return toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+    messages,
+    tools,
+    ...extra,
+  }).toolConfig;
 }
 
 describe('tool choice', () => {
@@ -126,7 +126,7 @@ describe('tool choice', () => {
       { name: 'time', description: 'Time', inputSchema: z.object({}) },
       async () => '9am'
     );
-    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client);
     ai.registry.registerAction('model', model);
     const res = await ai.generate({
       model: model.__action.name,
@@ -224,29 +224,25 @@ describe('tool choice', () => {
   });
 
   it('sends tool history as text and no tools for none', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        tools,
-        toolChoice: 'none',
-        messages: [
-          user,
-          {
-            role: 'model',
-            content: [
-              { toolRequest: { name: 'weather', ref: 't1', input: { c: 1 } } },
-            ],
-          },
-          {
-            role: 'tool',
-            content: [
-              { toolResponse: { name: 'weather', ref: 't1', output: 'sunny' } },
-            ],
-          },
-        ],
-      },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      tools,
+      toolChoice: 'none',
+      messages: [
+        user,
+        {
+          role: 'model',
+          content: [
+            { toolRequest: { name: 'weather', ref: 't1', input: { c: 1 } } },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            { toolResponse: { name: 'weather', ref: 't1', output: 'sunny' } },
+          ],
+        },
+      ],
+    });
     // Without tools the model can't call one; Converse would reject tool
     // blocks without a toolConfig, so they are sent as text.
     assert.equal(body.toolConfig, undefined);
@@ -261,11 +257,11 @@ describe('tool choice', () => {
   });
 
   it('ignores tool choice for models without tool support', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.titan-text-express-v1',
-      { messages: [user], tools, toolChoice: 'required' },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.titan-text-express-v1', {
+      messages: [user],
+      tools,
+      toolChoice: 'required',
+    });
     assert.equal(body.toolConfig, undefined);
   });
 });
@@ -336,7 +332,7 @@ describe('toolChoice support', () => {
 
   it('is declared on the registered model actions', () => {
     const { client } = fakeClient(() => ({}));
-    const action = awsBedrockModel('us.amazon.nova-pro-v1:0', client, 'us');
+    const action = awsBedrockModel('us.amazon.nova-pro-v1:0', client);
     assert.equal(
       (action.__action.metadata as any)?.model?.supports?.toolChoice,
       true
