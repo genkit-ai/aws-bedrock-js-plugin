@@ -25,6 +25,7 @@ import { ModelAction, ModelReference, modelRef } from 'genkit/model';
 import { model } from 'genkit/plugin';
 
 import { toGenkitError } from './errors.js';
+import { baseModelId } from './models.js';
 
 /**
  * Per-call configuration for Bedrock image models. Fields a model family
@@ -82,7 +83,7 @@ export type ImageFamily = 'titan' | 'stability-sdxl' | 'stability';
  * that isn't an image generator.
  */
 export function imageFamily(modelId: string): ImageFamily | undefined {
-  const id = modelId.replace(/^(us|eu|apac|jp|au|ca|global|us-gov)\./, '');
+  const id = baseModelId(modelId);
   if (
     id.startsWith('amazon.titan-image-generator') ||
     id.startsWith('amazon.nova-canvas')

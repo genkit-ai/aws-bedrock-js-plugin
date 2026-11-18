@@ -26,6 +26,7 @@ import {
   toImageRequest,
 } from '../src/image.js';
 import { awsBedrock } from '../src/index.js';
+import { baseModelId } from '../src/models.js';
 import { fakeClient, jsonBody } from './mocks/bedrock-client.js';
 
 describe('imageFamily', () => {
@@ -42,6 +43,16 @@ describe('imageFamily', () => {
       'stability'
     );
     assert.equal(imageFamily('amazon.nova-pro-v1:0'), undefined);
+  });
+});
+
+describe('imageFamily prefixes', () => {
+  it('strips the same inference-profile prefixes as chat models', () => {
+    for (const prefix of ['us', 'us-gov', 'eu', 'apac', 'jp', 'global']) {
+      const id = `${prefix}.stability.sd3-5-large-v1:0`;
+      assert.equal(baseModelId(id), 'stability.sd3-5-large-v1:0');
+      assert.equal(imageFamily(id), 'stability');
+    }
   });
 });
 
