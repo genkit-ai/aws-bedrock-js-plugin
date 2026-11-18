@@ -163,6 +163,34 @@ describe('awsBedrockImageModel', () => {
     ]);
   });
 
+  it('labels Stability images with the requested output_format', async () => {
+    const { client, sent } = fakeClient(() => jsonBody({ images: ['AAAA'] }));
+    const generate = (config?: Record<string, unknown>) =>
+      awsBedrockImageModel(
+        'stability.stable-image-core-v1:1',
+        client
+      )({
+        messages: [{ role: 'user', content: [{ text: 'x' }] }],
+        config,
+      });
+    for (const [format, type] of [
+      ['jpeg', 'image/jpeg'],
+      ['webp', 'image/webp'],
+      ['png', 'image/png'],
+    ]) {
+      const res = await generate({ output_format: format });
+      assert.equal(
+        JSON.parse(sent[sent.length - 1].input.body).output_format,
+        format
+      );
+      assert.deepEqual(res.message?.content, [
+        { media: { url: `data:${type};base64,AAAA`, contentType: type } },
+      ]);
+    }
+    const res = await generate();
+    assert.equal(res.message?.content[0].media?.contentType, 'image/png');
+  });
+
   it('reports filtered output as blocked', async () => {
     const { client } = fakeClient(() =>
       jsonBody({ images: [], finish_reasons: ['Filter reason: output'] })

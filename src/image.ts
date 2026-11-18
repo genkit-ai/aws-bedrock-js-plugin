@@ -218,6 +218,26 @@ export function toImageRequest(
   }
 }
 
+const OUTPUT_FORMAT_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+};
+
+/**
+ * The MIME type of the images a request asks for. Stability models take an
+ * output_format (png, jpeg or webp), which can be overridden through the
+ * passthrough config; Titan, Nova Canvas and SDXL always return PNG.
+ */
+export function imageContentType(body: Record<string, unknown>): string {
+  const format = body.output_format;
+  return (
+    (typeof format === 'string' && OUTPUT_FORMAT_TYPES[format.toLowerCase()]) ||
+    'image/png'
+  );
+}
+
 /** Base64 images and, when the model filtered the output, why. */
 interface ImageResult {
   images: string[];
@@ -285,8 +305,9 @@ function promptOf(request: GenerateRequest): string {
 
 /**
  * Defines a Bedrock image generation model. The prompt is the text of the
- * latest user message; each generated image comes back as an image/png media
- * part with a base64 data URL.
+ * latest user message; each generated image comes back as a media part with
+ * a base64 data URL, labelled with the requested output format (PNG unless a
+ * Stability output_format says otherwise).
  */
 export function awsBedrockImageModel(
   name: string,
@@ -328,10 +349,11 @@ export function awsBedrockImageModel(
         throw toGenkitError(err);
       }
 
+      const contentType = imageContentType(body);
       const content: Part[] = result.images.map((b64) => ({
         media: {
-          url: `data:image/png;base64,${b64}`,
-          contentType: 'image/png',
+          url: `data:${contentType};base64,${b64}`,
+          contentType,
         },
       }));
       if (content.length === 0 && !result.blocked) {
