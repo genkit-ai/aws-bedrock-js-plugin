@@ -342,7 +342,7 @@ Each document gets its own embedding, in the order you pass them. The plugin sen
 | `amazonTitanEmbedTextV2`, `amazonTitanEmbedTextG1V1` | text | `dimensions` (v2: 256, 512, 1024), `normalize` (v2) |
 | `amazonTitanEmbedMultimodalV2` | text, png/jpeg image, or both | `dimensions` (256, 384, 1024) |
 | `cohereEmbedEnglishV3`, `cohereEmbedMultilingualV3`, `cohereEmbedV4` | text (batched, 96 per call) or image | `inputType`, `truncate`, `dimensions` (v4) |
-| `amazonNova2MultimodalEmbeddingsV1` | text, image or video | `embeddingPurpose`, `dimensions` (256, 384, 1024, 3072), `truncate` |
+| `amazonNova2MultimodalEmbeddingsV1` | text, image or video | `embeddingPurpose`, `dimensions` (256, 384, 1024 (default), 3072), `truncate` |
 
 ```typescript
 const embeddings = await ai.embedMany({

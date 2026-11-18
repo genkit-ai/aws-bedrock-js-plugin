@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  amazonNova2MultimodalEmbeddingsV1,
   awsBedrockEmbedder,
   embedderFamily,
 } from '../src/aws_bedrock_embedders.js';
@@ -206,6 +207,24 @@ describe('Nova', () => {
       }
     );
     assert.equal(res.embeddings.length, 2);
+  });
+});
+
+describe('Nova dimensions', () => {
+  it('sends the advertised dimension when none is set', async () => {
+    const { client, sent } = fakeClient(() =>
+      jsonBody({ embeddings: [{ embedding: [1] }] })
+    );
+    await awsBedrockEmbedder(
+      'amazon.nova-2-multimodal-embeddings-v1:0',
+      client
+    )({ input: [text('hello')] });
+    const params = JSON.parse(sent[0].input.body).singleEmbeddingParams;
+    assert.equal(
+      params.embeddingDimension,
+      amazonNova2MultimodalEmbeddingsV1.info?.dimensions
+    );
+    assert.equal(params.embeddingDimension, 1024);
   });
 });
 

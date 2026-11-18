@@ -76,11 +76,18 @@ export type AwsBedrockEmbedderConfig = TextEmbeddingGeckoConfig;
 
 export const TextEmbeddingInputSchema = z.string();
 
+/**
+ * The vector size the Nova embedder advertises and sends when no dimensions
+ * are set. Bedrock's own default is 3072, which wouldn't match the 1024 the
+ * embedder reports.
+ */
+const NOVA_DEFAULT_DIMENSION = 1024;
+
 export const amazonNova2MultimodalEmbeddingsV1 = createEmbedderRef({
   name: 'aws-bedrock/amazon.nova-2-multimodal-embeddings-v1:0',
   configSchema: TextEmbeddingConfigSchema,
   info: {
-    dimensions: 1024,
+    dimensions: NOVA_DEFAULT_DIMENSION,
     label: 'Amazon - nova-2-multimodal-embeddings-v1:0',
     supports: {
       input: ['text', 'image', 'video'],
@@ -412,7 +419,7 @@ async function embedNova(
   return mapLimit(docs, async (doc, i) => {
     const params: Record<string, unknown> = {
       embeddingPurpose: options.embeddingPurpose ?? 'GENERIC_INDEX',
-      embeddingDimension: options.dimensions,
+      embeddingDimension: options.dimensions ?? NOVA_DEFAULT_DIMENSION,
     };
     const media = docMedia(doc, i);
     if (doc.text) {
