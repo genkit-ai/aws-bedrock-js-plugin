@@ -18,9 +18,8 @@ import * as assert from 'assert';
 import { genkit } from 'genkit';
 import { describe, it } from 'node:test';
 
-import { toAwsBedrockRequestBody } from '../src/converse.js';
 import { awsBedrockModel } from '../src/generate.js';
-import { awsBedrock } from '../src/index.js';
+import { amazonNovaLiteV1, amazonNovaProV1, awsBedrock } from '../src/index.js';
 import { baseModelId, modelInfoFor } from '../src/models.js';
 import { __testClient, type PluginOptions } from '../src/types.js';
 import { fakeClient } from './mocks/bedrock-client.js';
@@ -72,10 +71,52 @@ describe('capability lookup', () => {
 });
 
 describe('inference region', () => {
-  it("isn't threaded through the chat model, which looks capabilities up by ID", () => {
-    // Only registration needs the region (for the default model IDs).
-    assert.equal(awsBedrockModel.length, 2);
-    assert.equal(toAwsBedrockRequestBody.length, 2);
+  it("doesn't change the chat request body with the client's region", async () => {
+    // Capabilities are looked up by model ID, so the region the client was
+    // configured with never reaches the request.
+    const bodyFor = async (region: string) => {
+      const { client, sent } = fakeClient(() => ({
+        output: { message: { role: 'assistant', content: [{ text: 'ok' }] } },
+        stopReason: 'end_turn',
+      }));
+      (client as unknown as { config: unknown }).config = {
+        region: async () => region,
+      };
+      await awsBedrockModel(`us.${SONNET_45}`, client)(
+        { messages: [{ role: 'user', content: [{ text: 'hi' }] }] },
+        {}
+      );
+      return sent[0].input;
+    };
+    const us = await bodyFor('us-east-1');
+    assert.equal(us.modelId, `us.${SONNET_45}`);
+    assert.deepEqual(await bodyFor('eu-west-1'), us);
+    assert.deepEqual(await bodyFor('ap-southeast-2'), us);
+  });
+});
+
+describe('model info', () => {
+  it("keeps a model ref's info (versions, label, supports) on the action", async () => {
+    const { ai } = setup();
+    const ref = amazonNovaProV1('us');
+    for (const id of ['us.amazon.nova-pro-v1:0', 'amazon.nova-lite-v1:0']) {
+      const expected = id.startsWith('us.') ? ref : amazonNovaLiteV1;
+      const action = await ai.registry.lookupAction(`/model/aws-bedrock/${id}`);
+      const meta = action?.__action.metadata?.model as Record<string, any>;
+      assert.ok(expected.info?.versions?.length);
+      assert.deepEqual(meta.versions, expected.info?.versions, id);
+      assert.equal(meta.label, expected.info?.label, id);
+      assert.deepEqual(meta.supports, expected.info?.supports, id);
+    }
+    // list() reports the same info.
+    const listed = await (
+      awsBedrock({
+        region: 'us-east-1',
+        [__testClient]: fakeClient(() => ({})).client,
+      } as PluginOptions) as any
+    ).list();
+    const entry = listed.find((a: any) => a.name === ref.name);
+    assert.deepEqual(entry.metadata.model.versions, ref.info?.versions);
   });
 });
 
@@ -162,20 +203,29 @@ describe('references', () => {
     );
   });
 
-  it('declares toolChoice for models with tools, and only those', async () => {
+  it('declares toolChoice per family, not for every model with tools', async () => {
     assert.equal(
       awsBedrock.model(`us.${SONNET_45}`).info?.supports?.toolChoice,
       true
     );
     assert.equal(
-      awsBedrock.model('custom.new-model-v1:0').info?.supports?.toolChoice,
+      awsBedrock.model('us.amazon.nova-pro-v1:0').info?.supports?.toolChoice,
       true
     );
-    assert.equal(
-      awsBedrock.model('amazon.titan-text-express-v1').info?.supports
-        ?.toolChoice,
-      false
-    );
+    // Unknown models and families Bedrock doesn't document default to false.
+    for (const id of [
+      'custom.new-model-v1:0',
+      'amazon.titan-text-express-v1',
+      'us.meta.llama3-3-70b-instruct-v1:0',
+      'cohere.command-r-v1:0',
+      'ai21.jamba-1-5-large-v1:0',
+    ]) {
+      assert.notEqual(
+        awsBedrock.model(id).info?.supports?.toolChoice,
+        true,
+        id
+      );
+    }
     const { ai } = setup();
     const action = await ai.registry.lookupAction(
       `/model/aws-bedrock/global.${SONNET_45}`
@@ -196,8 +246,8 @@ describe('references', () => {
       'aws-bedrock/cohere.embed-v4:0'
     );
     assert.equal(
-      awsBedrock.reranker('amazon.rerank-v1:0').name,
-      'aws-bedrock/amazon.rerank-v1:0'
+      awsBedrock.reranker('cohere.rerank-v3-5:0').name,
+      'aws-bedrock/cohere.rerank-v3-5:0'
     );
   });
 });

@@ -37,6 +37,7 @@ export function awsBedrockModel(
   const modelInfo = {
     name: `aws-bedrock/${name}`,
     label: info.label,
+    versions: info.versions,
     supports: info.supports,
     configSchema: AwsBedrockConfigSchema,
   };

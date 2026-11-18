@@ -1211,12 +1211,12 @@ export function baseModelId(modelId: string): string {
 
 /**
  * Capabilities assumed for models the plugin doesn't know: modern Converse
- * chat models support all of these.
+ * chat models support all of these, except a forced tool choice, which only
+ * some model families accept (see supports.toolChoice on each model).
  */
 export const DEFAULT_MODEL_SUPPORTS = {
   multiturn: true,
   tools: true,
-  toolChoice: true,
   media: true,
   systemRole: true,
   output: ['text', 'json'],
@@ -1257,10 +1257,11 @@ export function modelInfoFor(modelId: string): {
     ...DEFAULT_MODEL_SUPPORTS,
     ...(ref.info.supports as object),
   };
-  // Tool choice only applies to models that take tools.
-  supports.toolChoice = supports.tools === true;
+  // supports.toolChoice comes from the model's own declaration: models
+  // that don't set it (and unknown models) don't support a forced choice.
   return {
     label: ref.info.label ?? `AWS Bedrock - ${modelId}`,
+    versions: ref.info.versions,
     supports,
   };
 }

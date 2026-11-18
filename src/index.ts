@@ -398,7 +398,8 @@ function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
             ? awsBedrockEmbedder(id, client)
             : undefined;
         case 'reranker':
-          return id.includes('rerank')
+          // Amazon Rerank isn't served through InvokeModel (see rerank.ts).
+          return id.includes('rerank') && !/(^|\.)amazon\.rerank/.test(id)
             ? awsBedrockReranker(id, client)
             : undefined;
         default:
