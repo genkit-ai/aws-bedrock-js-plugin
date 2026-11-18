@@ -673,8 +673,9 @@ Your AWS account needs [model access](https://docs.aws.amazon.com/bedrock/latest
 ### Known limitations
 
 - Bedrock does not fetch remote media. Pass images, documents and videos as base64 data URLs or `s3://` URIs.
-- Converse has no "none" tool choice. Once a conversation holds tool calls, `toolChoice: 'none'` still sends the tools.
-- `toolChoice: 'required'` and a named tool work only on models that support them, including Claude, Nova and Mistral Large.
+- Converse has no "none" tool choice. With `toolChoice: 'none'`, no tools are sent and earlier tool calls and results reach the model as text.
+- `toolChoice: 'required'` and a named tool work only on models that support them, including Claude, Nova and Mistral Large. A named tool (`config.toolChoice`) is forced until it has answered since the last user message, then the choice is `auto`.
+- In JSON mode, a response cut off by `maxOutputTokens`, or one that isn't valid JSON, comes back as text with no data part, as with Genkit's other model plugins. Genkit then parses and validates `response.output` itself, so check `finishReason` (`'length'`) before trusting the output of a cut-off response.
 - Image generation takes a text prompt; image-to-image tasks (inpainting, variations) aren't supported yet.
 - Embeddings and image generation call `InvokeModel` once per document or request, so large batches are bounded by your Bedrock quotas.
 
