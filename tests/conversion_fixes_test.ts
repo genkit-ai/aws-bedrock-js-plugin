@@ -361,6 +361,43 @@ describe('response conversion', () => {
     );
     assert.deepEqual(res.message?.content, [{ text: 'sorry, no' }]);
   });
+
+  const jsonReply = (text: string, stopReason?: string) =>
+    fromAwsBedrockChoice(
+      {
+        stopReason,
+        output: { message: { role: 'assistant', content: [{ text }] } },
+      } as any,
+      true
+    );
+
+  it('parses JSON surrounded by prose', () => {
+    assert.deepEqual(
+      jsonReply('Here you go: {"n": [1, 2]} Enjoy.').message?.content,
+      [{ data: { n: [1, 2] } }]
+    );
+  });
+
+  it('returns truncated JSON as text, not partial data', () => {
+    const res = jsonReply('{"a": 1, "b": "unfini', 'max_tokens');
+    assert.equal(res.finishReason, 'length');
+    assert.deepEqual(res.message?.content, [{ text: '{"a": 1, "b": "unfini' }]);
+  });
+
+  it('returns cut-off JSON as text even when it happens to parse', () => {
+    const res = jsonReply('{"items": [1]}', 'max_tokens');
+    assert.deepEqual(res.message?.content, [{ text: '{"items": [1]}' }]);
+  });
+
+  it('returns malformed JSON as text instead of throwing', () => {
+    const res = jsonReply('{"a": 1,, }', 'end_turn');
+    assert.deepEqual(res.message?.content, [{ text: '{"a": 1,, }' }]);
+  });
+
+  it('does not complete unterminated JSON', () => {
+    const res = jsonReply('{"a": [1, 2', 'end_turn');
+    assert.deepEqual(res.message?.content, [{ text: '{"a": [1, 2' }]);
+  });
 });
 
 describe('errors', () => {

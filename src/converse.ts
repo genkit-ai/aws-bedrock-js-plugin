@@ -38,7 +38,6 @@ import {
   Part,
   Role,
 } from 'genkit';
-import { extractJson } from 'genkit/extract';
 import {
   GenerationUsage,
   ModelResponseData,
@@ -428,15 +427,50 @@ export function fromAwsBedrockUsage(
   return out;
 }
 
+/** Stop reasons that mean the model's output was cut off. */
+const TRUNCATED_STOP_REASONS = new Set([
+  'max_tokens',
+  'model_context_window_exceeded',
+]);
+
 /**
- * Converts the model's text in JSON mode to a data part, accepting JSON
- * wrapped in a code fence or surrounded by prose. Text that holds no JSON is
- * returned as text so the caller still sees what the model said.
+ * Strictly parses the JSON in a final response: the whole text, or else the
+ * span from the first `{` or `[` to the last `}` or `]`, which drops a code
+ * fence or prose around it. Returns undefined when neither parses.
  */
-export function jsonOutputPart(text: string): Part {
+function parseFinalJson(text: string): unknown {
+  const trimmed = text.trim();
+  const candidates = [trimmed];
+  const start = trimmed.search(/[[{]/);
+  const end = Math.max(trimmed.lastIndexOf('}'), trimmed.lastIndexOf(']'));
+  if (start >= 0 && end > start) {
+    candidates.push(trimmed.slice(start, end + 1));
+  }
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Converts the model's final text in JSON mode to a data part, accepting
+ * JSON wrapped in a code fence or surrounded by prose.
+ *
+ * Partial data is never returned as final output: when the model was cut
+ * off (max_tokens) or the text isn't valid JSON, the text is returned as
+ * is, with no data part, like Genkit's Anthropic and Google AI plugins. The
+ * caller still sees what the model said; Genkit's own output parsing and
+ * schema validation then apply, and finishReason says it was cut off.
+ */
+export function jsonOutputPart(text: string, stopReason?: string): Part {
+  if (stopReason && TRUNCATED_STOP_REASONS.has(stopReason)) return { text };
   if (!text.trim()) return { data: {} };
-  const data = extractJson(text);
-  return data === null || data === undefined ? { text } : { data };
+  const data = parseFinalJson(text);
+  return data === undefined ? { text } : { data };
 }
 
 /**
@@ -467,7 +501,12 @@ export function fromAwsBedrockChoice(
   const hasToolRequests = content.some((p) => p.toolRequest);
   let message: Part[] = content;
   if (jsonMode && !hasToolRequests) {
-    message = [jsonOutputPart(content.map((p) => p.text ?? '').join(''))];
+    message = [
+      jsonOutputPart(
+        content.map((p) => p.text ?? '').join(''),
+        choice.stopReason
+      ),
+    ];
   } else if (content.length === 0) {
     message = [{ text: '' }];
   }
