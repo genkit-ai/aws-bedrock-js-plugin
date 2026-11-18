@@ -186,7 +186,6 @@ export {
 };
 
 export {
-  amazonRerankV1,
   cohereRerank35,
   RerankConfigSchema,
   type RerankConfig,

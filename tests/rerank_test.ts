@@ -39,14 +39,6 @@ describe('toRerankRequest', () => {
         api_version: 2,
       }
     );
-    assert.deepEqual(
-      toRerankRequest('amazon.rerank-v1:0', 'q', ['a', 'b'], { k: 1 }),
-      {
-        query: 'q',
-        documents: ['a', 'b'],
-        top_n: 1,
-      }
-    );
   });
 });
 
@@ -82,7 +74,7 @@ describe('awsBedrockReranker', () => {
   it('returns nothing for no documents without calling Bedrock', async () => {
     const { client, sent } = fakeClient(() => jsonBody({ results: [] }));
     const res = await awsBedrockReranker(
-      'amazon.rerank-v1:0',
+      'cohere.rerank-v3-5:0',
       client
     )({
       query: doc('q'),
@@ -96,7 +88,7 @@ describe('awsBedrockReranker', () => {
     const { client, sent } = fakeClient(() => jsonBody({ results: [] }));
     await assert.rejects(
       awsBedrockReranker(
-        'amazon.rerank-v1:0',
+        'cohere.rerank-v3-5:0',
         client
       )({
         query: { content: [] },
@@ -111,7 +103,7 @@ describe('awsBedrockReranker', () => {
     const { client } = fakeClient(() => jsonBody({ results: [] }));
     await assert.rejects(
       awsBedrockReranker(
-        'amazon.rerank-v1:0',
+        'cohere.rerank-v3-5:0',
         client
       )({
         query: doc('q'),
@@ -131,7 +123,7 @@ describe('awsBedrockReranker', () => {
     });
     await assert.rejects(
       awsBedrockReranker(
-        'amazon.rerank-v1:0',
+        'cohere.rerank-v3-5:0',
         client
       )({ query: doc('q'), documents: [doc('a')] }),
       (e: any) => e.status === 'PERMISSION_DENIED'
@@ -146,13 +138,29 @@ describe('plugin registration', () => {
       credentials: { accessKeyId: 'x', secretAccessKey: 'y' },
     });
 
+  it('refuses Amazon Rerank, which InvokeModel is not documented to serve', () => {
+    const { client } = fakeClient(() => ({}));
+    for (const id of ['amazon.rerank-v1:0', 'us.amazon.rerank-v1:0']) {
+      assert.throws(
+        () => awsBedrockReranker(id, client),
+        (e: any) =>
+          e.status === 'INVALID_ARGUMENT' &&
+          /agent-runtime Rerank API/.test(e.message)
+      );
+    }
+  });
+
   it('registers the rerankers', async () => {
     const ai = genkit({ plugins: [plugin()] });
     assert.ok(
       await ai.registry.lookupAction(`/reranker/${cohereRerank35.name}`)
     );
-    assert.ok(
-      await ai.registry.lookupAction('/reranker/aws-bedrock/amazon.rerank-v1:0')
+    // Amazon Rerank 1.0 is only documented for the agent-runtime Rerank API.
+    assert.equal(
+      await ai.registry.lookupAction(
+        '/reranker/aws-bedrock/amazon.rerank-v1:0'
+      ),
+      undefined
     );
   });
 

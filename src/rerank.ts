@@ -44,16 +44,13 @@ export const cohereRerank35 = rerankerRef({
   info: { label: 'Cohere - Rerank 3.5' },
 });
 
-export const amazonRerankV1 = rerankerRef({
-  name: 'aws-bedrock/amazon.rerank-v1:0',
-  configSchema: RerankConfigSchema,
-  info: { label: 'Amazon - Rerank 1.0' },
-});
-
-/** The rerankers the plugin registers, by Bedrock model ID. */
+/**
+ * The rerankers the plugin registers, by Bedrock model ID. Amazon Rerank 1.0
+ * (amazon.rerank-v1:0) is not here: AWS documents it only for the
+ * bedrock-agent-runtime Rerank API, not for InvokeModel.
+ */
 export const SUPPORTED_RERANKERS = {
   'cohere.rerank-v3-5:0': cohereRerank35,
-  'amazon.rerank-v1:0': amazonRerankV1,
 };
 
 /** Cohere Rerank on Bedrock needs api_version 2. */
@@ -92,6 +89,12 @@ export function awsBedrockReranker(
   name: keyof typeof SUPPORTED_RERANKERS | string,
   client: BedrockRuntimeClient
 ) {
+  if (/(^|\.)amazon\.rerank/.test(name)) {
+    throw new GenkitError({
+      status: 'INVALID_ARGUMENT',
+      message: `${name} can't be called through InvokeModel: AWS documents Amazon Rerank only for the bedrock-agent-runtime Rerank API, which this plugin doesn't use.`,
+    });
+  }
   const ref =
     SUPPORTED_RERANKERS[name as keyof typeof SUPPORTED_RERANKERS] ??
     rerankerRef({
