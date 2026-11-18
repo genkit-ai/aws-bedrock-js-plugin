@@ -468,7 +468,9 @@ function parseFinalJson(text: string): unknown {
  */
 export function jsonOutputPart(text: string, stopReason?: string): Part {
   if (stopReason && TRUNCATED_STOP_REASONS.has(stopReason)) return { text };
-  if (!text.trim()) return { data: {} };
+  // Nothing came back (empty output, or a guardrail swallowed it): say so
+  // rather than reporting a successful empty object.
+  if (!text.trim()) return { text };
   const data = parseFinalJson(text);
   return data === undefined ? { text } : { data };
 }

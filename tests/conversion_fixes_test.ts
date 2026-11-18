@@ -389,6 +389,15 @@ describe('response conversion', () => {
     assert.deepEqual(res.message?.content, [{ text: '{"items": [1]}' }]);
   });
 
+  for (const stopReason of ['guardrail_intervened', 'end_turn']) {
+    it(`does not turn empty text into {} data (${stopReason})`, () => {
+      for (const text of ['', '  \n']) {
+        const res = jsonReply(text, stopReason);
+        assert.deepEqual(res.message?.content, [{ text }]);
+      }
+    });
+  }
+
   it('returns malformed JSON as text instead of throwing', () => {
     const res = jsonReply('{"a": 1,, }', 'end_turn');
     assert.deepEqual(res.message?.content, [{ text: '{"a": 1,, }' }]);
