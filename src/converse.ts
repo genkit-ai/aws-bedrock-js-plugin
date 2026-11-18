@@ -44,6 +44,7 @@ import {
   ModelResponseData,
   ToolDefinition,
 } from 'genkit/model';
+import { createHash } from 'node:crypto';
 
 import { SUPPORTED_AWS_BEDROCK_MODELS } from './models.js';
 
@@ -188,14 +189,24 @@ function sniffImageFormat(source: MediaSource): ImageFormat | undefined {
 }
 
 /**
- * Generates a unique filename from a document format.
+ * Generates a document name from its format and content.
  * AWS Bedrock document names can only contain alphanumeric characters,
  * whitespace, hyphens, parentheses, and square brackets (no dots/periods).
+ * The name is a hash of the document's bytes or S3 URI, so the same document
+ * gets the same name on every request and prompt-cache points still match.
  * @param format The document format.
- * @returns A valid unique document name.
+ * @param source Where Bedrock reads the document from.
+ * @returns A valid, stable document name.
  */
-function generateFilenameFromFormat(format: DocumentFormat): string {
-  return `document-${format}-${Math.random().toString(36).slice(2)}`;
+function generateFilenameFromFormat(
+  format: DocumentFormat,
+  source: MediaSource
+): string {
+  const hash = createHash('sha256')
+    .update('bytes' in source ? source.bytes : source.s3Location.uri)
+    .digest('hex')
+    .slice(0, 16);
+  return `document-${format}-${hash}`;
 }
 
 /**
@@ -233,7 +244,7 @@ export function toAwsBedrockTextAndMedia(
     if (docFormat) {
       return {
         document: {
-          name: generateFilenameFromFormat(docFormat),
+          name: generateFilenameFromFormat(docFormat, source),
           format: docFormat,
           source,
         },

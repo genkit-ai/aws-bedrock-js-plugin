@@ -154,6 +154,22 @@ describe('media', () => {
     assert.equal(media(b64(JPEG_BYTES)).image?.format, 'jpeg');
   });
 
+  it('names a document after its content, so cache points still match', () => {
+    const pdf = 'data:application/pdf;base64,JVBERi0xLjQ=';
+    const name = media(pdf).document?.name;
+    assert.match(name ?? '', /^document-pdf-[0-9a-f]{16}$/);
+    assert.equal(media(pdf).document?.name, name);
+    assert.notEqual(
+      media('data:application/pdf;base64,JVBERi0xLjU=').document?.name,
+      name
+    );
+    const s3 = media('s3://bucket/a.pdf', 'application/pdf').document?.name;
+    assert.equal(
+      media('s3://bucket/a.pdf', 'application/pdf').document?.name,
+      s3
+    );
+  });
+
   it('sends videos as video blocks', () => {
     assert.equal(media('data:video/mp4;base64,AAAA').video?.format, 'mp4');
   });
