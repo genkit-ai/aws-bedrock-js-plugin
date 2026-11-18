@@ -158,6 +158,58 @@ describe('stream reassembly', () => {
     );
   });
 
+  it('still fails on invalid tool input when the model ended its turn', async () => {
+    await assert.rejects(
+      run([
+        toolStart(0, 't1', 'weather'),
+        toolDelta(0, '{"city":'),
+        stop(0),
+        { messageStop: { stopReason: 'end_turn' } },
+      ]),
+      (e: any) =>
+        e.status === 'INTERNAL' &&
+        /invalid JSON input for tool "weather"/.test(e.message)
+    );
+  });
+
+  for (const stopReason of ['max_tokens', 'model_context_window_exceeded']) {
+    it(`drops a tool call cut off by ${stopReason}`, async () => {
+      const chunks: any[] = [];
+      const res = await run(
+        [
+          textDelta(0, 'Let me check. '),
+          toolStart(1, 't1', 'weather'),
+          toolDelta(1, '{"city":'),
+          stop(1),
+          { messageStop: { stopReason } },
+        ],
+        {},
+        (c) => chunks.push(c)
+      );
+      assert.equal(res.finishReason, 'length');
+      assert.deepEqual(res.message?.content, [{ text: 'Let me check. ' }]);
+      assert.ok(
+        chunks.every((c) => !c.content.some((p: any) => p.toolRequest))
+      );
+    });
+  }
+
+  it('keeps complete tool calls when the response was cut off later', async () => {
+    const res = await run([
+      toolStart(0, 't1', 'weather'),
+      toolDelta(0, '{"city":"Paris"}'),
+      stop(0),
+      toolStart(1, 't2', 'weather'),
+      toolDelta(1, '{"city":'),
+      stop(1),
+      { messageStop: { stopReason: 'max_tokens' } },
+    ]);
+    assert.equal(res.finishReason, 'length');
+    assert.deepEqual(res.message?.content, [
+      { toolRequest: { name: 'weather', ref: 't1', input: { city: 'Paris' } } },
+    ]);
+  });
+
   it('maps exceptions sent as stream events', async () => {
     await assert.rejects(
       run([

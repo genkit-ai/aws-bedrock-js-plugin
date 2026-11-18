@@ -30,6 +30,7 @@ import {
   fromAwsBedrockReasoning,
   fromAwsBedrockStopReason,
   fromAwsBedrockUsage,
+  TRUNCATED_STOP_REASONS,
 } from './converse.js';
 import { toGenkitError } from './errors.js';
 import { AwsBedrockConfigSchema } from './types.js';
@@ -52,32 +53,47 @@ const STREAM_EXCEPTIONS = [
 ] as const;
 
 /**
- * Parses a streamed tool call's accumulated input.
+ * Parses a streamed tool call's accumulated input, or returns the parse
+ * error for input that isn't valid JSON.
  */
-function parseToolInput(block: { name: string; inputJson: string }): unknown {
-  if (!block.inputJson.trim()) return {};
+function parseToolInput(block: {
+  inputJson: string;
+}): { input: unknown } | { error: Error } {
+  if (!block.inputJson.trim()) return { input: {} };
   try {
-    return JSON.parse(block.inputJson);
+    return { input: JSON.parse(block.inputJson) };
   } catch (err) {
-    throw new GenkitError({
-      status: 'INTERNAL',
-      message: `AWS Bedrock streamed invalid JSON input for tool "${block.name}": ${(err as Error).message}`,
-    });
+    return { error: err as Error };
   }
 }
 
-function toPart(block: StreamBlock): Part | undefined {
+/**
+ * Builds the part for a finished block. A tool call whose input doesn't
+ * parse is dropped when the response was cut off (`truncated`): the model
+ * ran out of tokens mid-call, and the finish reason says so. Otherwise the
+ * invalid input is an error.
+ */
+function toPart(block: StreamBlock, truncated: boolean): Part | undefined {
   switch (block.kind) {
     case 'text':
       return { text: block.text };
-    case 'tool':
+    case 'tool': {
+      const parsed = parseToolInput(block);
+      if ('error' in parsed) {
+        if (truncated) return undefined;
+        throw new GenkitError({
+          status: 'INTERNAL',
+          message: `AWS Bedrock streamed invalid JSON input for tool "${block.name}": ${parsed.error.message}`,
+        });
+      }
       return {
         toolRequest: {
           name: block.name,
           ref: block.toolUseId,
-          input: parseToolInput(block),
+          input: parsed.input,
         },
       };
+    }
     case 'reasoning':
       return fromAwsBedrockReasoning(block.block);
   }
@@ -97,7 +113,7 @@ function concatBytes(a: Uint8Array | undefined, b: Uint8Array): Uint8Array {
  *
  * Content is rebuilt per contentBlockIndex. Text and reasoning deltas are
  * sent as chunks as they arrive; a tool request is sent once its block stops
- * and its input is complete. The final message holds the blocks in index
+ * and its input is complete; a tool call cut off by max_tokens is dropped. The final message holds the blocks in index
  * order, the same shape the non-streaming path returns, with the finish
  * reason from messageStop and the usage from the metadata event.
  */
@@ -189,8 +205,12 @@ export async function converseStream(
 
     if (event.contentBlockStop) {
       const block = blocks.get(event.contentBlockStop.contentBlockIndex ?? 0);
+      // The stop reason only arrives with messageStop, so a tool call whose
+      // input doesn't parse is neither sent nor rejected here; the final
+      // message decides once the stop reason is known.
       if (block?.kind === 'tool') {
-        sendChunk({ index: 0, content: [toPart(block)!] });
+        const part = toPart(block, true);
+        if (part) sendChunk({ index: 0, content: [part] });
       }
     }
 
@@ -203,9 +223,11 @@ export async function converseStream(
     }
   }
 
+  const truncated =
+    stopReason !== undefined && TRUNCATED_STOP_REASONS.has(stopReason);
   const content = [...blocks.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([, block]) => toPart(block))
+    .map(([, block]) => toPart(block, truncated))
     .filter((p): p is Part => p !== undefined);
 
   const jsonMode =

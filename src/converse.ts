@@ -521,7 +521,7 @@ export function fromAwsBedrockUsage(
 }
 
 /** Stop reasons that mean the model's output was cut off. */
-const TRUNCATED_STOP_REASONS = new Set([
+export const TRUNCATED_STOP_REASONS = new Set([
   'max_tokens',
   'model_context_window_exceeded',
 ]);
