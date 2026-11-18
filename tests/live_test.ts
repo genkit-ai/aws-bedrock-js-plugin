@@ -104,6 +104,34 @@ describe('live: Claude', { skip: !CLAUDE }, () => {
     assert.match((await response).text.toLowerCase(), /sunny/);
   });
 
+  it("finishes a tool loop with toolChoice 'required'", async () => {
+    const res = await ai.generate({
+      model,
+      tools: [weather],
+      toolChoice: 'required',
+      prompt: 'What is the weather in Paris?',
+    });
+    assert.match(res.text.toLowerCase(), /sunny/);
+    assert.ok(
+      res.messages.some((m) => m.content.some((p) => p.toolRequest)),
+      'the tool was never called'
+    );
+  });
+
+  it('finishes a tool loop with a named config.toolChoice', async () => {
+    const res = await ai.generate({
+      model,
+      tools: [weather],
+      prompt: 'What is the weather in Paris?',
+      config: { toolChoice: 'weather' },
+    });
+    assert.match(res.text.toLowerCase(), /sunny/);
+    assert.ok(
+      res.messages.some((m) => m.content.some((p) => p.toolRequest)),
+      'the tool was never called'
+    );
+  });
+
   it('replays signed reasoning across tool calls', async () => {
     const res = await ai.generate({
       model,
@@ -121,11 +149,13 @@ describe('live: Claude', { skip: !CLAUDE }, () => {
   });
 
   it('returns structured output', async () => {
+    // Bedrock rejects schemas with additionalProperties: true, which Genkit
+    // emits for a plain z.object(); .strict() makes it false.
     const res = await ai.generate({
       model,
       prompt: 'Give the capital of France.',
       output: {
-        schema: z.object({ city: z.string(), country: z.string() }),
+        schema: z.object({ city: z.string(), country: z.string() }).strict(),
       },
     });
     assert.ok(res.output);
