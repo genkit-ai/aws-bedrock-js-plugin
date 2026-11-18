@@ -22,6 +22,7 @@ import { genkit, z } from 'genkit';
 
 import { toAwsBedrockRequestBody } from '../src/converse.js';
 import { awsBedrockModel } from '../src/generate.js';
+import { SUPPORTED_AWS_BEDROCK_MODELS } from '../src/models.js';
 import { fakeClient } from './mocks/bedrock-client.js';
 
 const tools = [
@@ -175,5 +176,27 @@ describe('tool choice', () => {
       'us'
     );
     assert.equal(body.toolConfig, undefined);
+  });
+});
+
+describe('toolChoice support', () => {
+  it('is declared by every model that supports tools, and only those', () => {
+    for (const [id, ref] of Object.entries(SUPPORTED_AWS_BEDROCK_MODELS())) {
+      const supports = ref.info?.supports;
+      assert.equal(
+        supports?.toolChoice === true,
+        supports?.tools === true,
+        `${id} toolChoice support`
+      );
+    }
+  });
+
+  it('is declared on the registered model actions', () => {
+    const { client } = fakeClient(() => ({}));
+    const action = awsBedrockModel('us.amazon.nova-pro-v1:0', client, 'us');
+    assert.equal(
+      (action.__action.metadata as any)?.model?.supports?.toolChoice,
+      true
+    );
   });
 });

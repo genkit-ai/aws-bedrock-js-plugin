@@ -52,6 +52,7 @@ export function awsBedrockModel(
           supports: {
             multiturn: true,
             tools: true,
+            toolChoice: true,
             media: true,
             systemRole: true,
             output: ['text', 'json'],
