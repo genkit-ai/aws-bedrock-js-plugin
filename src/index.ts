@@ -100,6 +100,7 @@ import {
 import {
   awsBedrockImageModel,
   imageFamily,
+  ImageGenerationConfigSchema,
   SUPPORTED_IMAGE_MODELS,
 } from './image.js';
 import { awsBedrockReranker, SUPPORTED_RERANKERS } from './rerank.js';
@@ -283,7 +284,9 @@ export interface PluginOptions extends BedrockRuntimeClientConfig {
 export function defineAwsBedrockModel(
   name: string,
   options?: PluginOptions
-): ModelAction<typeof AwsBedrockConfigSchema> {
+): ModelAction<
+  typeof AwsBedrockConfigSchema | typeof ImageGenerationConfigSchema
+> {
   const client = new BedrockRuntimeClient(options || {});
 
   const region =
@@ -301,7 +304,10 @@ export function defineAwsBedrockModel(
     inferenceRegion = 'apac';
   }
 
-  return awsBedrockModel(name, client, inferenceRegion);
+  // Same routing as customModels: image model IDs get the image model.
+  return imageFamily(name)
+    ? awsBedrockImageModel(name, client)
+    : awsBedrockModel(name, client, inferenceRegion);
 }
 
 export function awsBedrock(options?: PluginOptions) {

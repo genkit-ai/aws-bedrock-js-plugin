@@ -18,7 +18,11 @@ import { genkit } from 'genkit';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { amazonNovaProV1, awsBedrock } from '../src/index.js';
+import {
+  amazonNovaProV1,
+  awsBedrock,
+  defineAwsBedrockModel,
+} from '../src/index.js';
 
 describe('awsBedrock plugin', () => {
   it("registers the known models with the region's inference prefix", async () => {
@@ -69,5 +73,24 @@ describe('awsBedrock plugin', () => {
         '/embedder/aws-bedrock/amazon.titan-embed-text-v2:0'
       )
     );
+  });
+
+  it('defineAwsBedrockModel routes image model IDs to the image model', () => {
+    const options = {
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'x', secretAccessKey: 'y' },
+    };
+    const supportsOf = (name: string) =>
+      (
+        defineAwsBedrockModel(name, options).__action.metadata as {
+          model?: { supports?: { output?: string[] } };
+        }
+      ).model?.supports;
+    // Same routing as customModels and resolve.
+    assert.deepEqual(supportsOf('amazon.nova-canvas-v1:0')?.output, ['media']);
+    assert.deepEqual(supportsOf('stability.sd3-5-large-v1:0')?.output, [
+      'media',
+    ]);
+    assert.notDeepEqual(supportsOf('custom.my-model-v1:0')?.output, ['media']);
   });
 });
