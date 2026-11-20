@@ -234,6 +234,27 @@ const response = await ai.generate({
 });
 ```
 
+### Media input
+
+Images, documents and videos are sent to Bedrock as the part's bytes, picked by the part's content type:
+
+- images: `png`, `jpeg`, `gif`, `webp`
+- documents: `pdf`, `csv`, `txt`, `html`, `md`, `doc`, `docx`, `xls`, `xlsx`
+- videos (Nova models): `mp4`, `mov`, `mkv`, `webm`, `flv`, `mpeg`, `mpg`, `wmv`, `3gp`
+
+Pass media as a base64 data URL, or as an `s3://` URI that your Bedrock role can read. Bedrock does not fetch `http(s)://` URLs, so the plugin rejects them; download the file and pass it as a data URL instead.
+
+```typescript
+const response = await ai.generate({
+  model: amazonNovaLiteV1,
+  prompt: [
+    { text: 'What is in this picture?' },
+    { media: { url: `data:image/jpeg;base64,${imageBase64}` } },
+    { media: { url: 's3://my-bucket/report.pdf', contentType: 'application/pdf' } },
+  ],
+});
+```
+
 For more detailed examples and the explanation of other functionalities, refer to the [official Genkit documentation](https://genkit.dev/).
 
 ## Using Custom Models
