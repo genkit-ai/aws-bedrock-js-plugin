@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -13,17 +16,21 @@ jobs:
         node-version: [20.x]
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v7
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     - name: install
       run: npm install --frozen-lockfile
     - run: npm run build
+    - name: import the CJS and ESM builds
+      run: |
+        node -e "require('./lib/index.js')"
+        node --input-type=module -e "await import('./lib/index.mjs')"
     - name: SonarCloud Scan
       if: env.SONAR_TOKEN != null
-      uses: SonarSource/sonarcloud-github-action@v5
+      uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
