@@ -33,7 +33,7 @@ Install the plugin in your project with your favourite package manager
 
 ### Versions
 
-if you are using Genkit version `<v0.9.0`, please use the plugin version `v1.9.0`. If you are using Genkit `>=v0.9.0`, please use the plugin version `>=v1.10.0`.
+If you are using Genkit version `<v0.9.0`, please use the plugin version `v1.9.0`. If you are using Genkit `>=v0.9.0`, please use the plugin version `>=v1.10.0`.
 
 ## Usage
 
@@ -136,7 +136,7 @@ The plugin registers its models under the inference-profile prefix for your regi
 
 To use another profile, such as `global.`, `jp.` or `au.`, pass its ID to `awsBedrock.model()` (see [Using Custom Models](#using-custom-models)).
 
-You can check more information about the available models in the [AWS Bedrock PLugin documentation](https://xavidop.github.io/genkitx-aws-bedrock/).
+You can check more information about the available models in the [AWS Bedrock plugin documentation](https://xavidop.github.io/genkitx-aws-bedrock/).
 
 ### Basic examples
 
@@ -235,7 +235,8 @@ const structuredOutputSchema = zodToJsonSchema(
     outputSchema.strict()
 );
 
-// Results in an error:
+// Results in an error: Genkit turns a plain zod object into a schema with
+// additionalProperties: true, which the plugin sends as-is, and Bedrock rejects it:
 // output_config.format.schema: For 'object' type, 'additionalProperties: true' is not supported. Please set 'additionalProperties' to false
 const response = await ai.generate({
   prompt: 'Tell me a joke.',
@@ -250,6 +251,14 @@ const response = await ai.generate({
   output: {
     format: 'json',
     jsonSchema: structuredOutputSchema
+  }
+});
+
+// Also works: a strict zod object passed as the schema
+const strictResponse = await ai.generate({
+  prompt: 'Tell me a joke.',
+  output: {
+    schema: outputSchema.strict()
   }
 });
 ```
@@ -411,7 +420,7 @@ const response = await ai.generate({
 await ai.generate({ model: 'aws-bedrock/openai.gpt-oss-20b-1:0', prompt: 'Hello!' });
 ```
 
-The plugin looks up a model's capabilities (tools, media, system prompt, structured output) by its ID without the inference-profile prefix, and sends the full ID to Bedrock. Models it doesn't know get modern Converse defaults. `awsBedrock.embedder()` and `awsBedrock.reranker()` work the same way for embedding and rerank models.
+The plugin looks up a model's capabilities (tools, media, system prompt, structured output) by its ID without the inference-profile prefix, and sends the full ID to Bedrock. Models it doesn't know get modern Converse defaults, except that they aren't declared to support a forced `toolChoice`. `awsBedrock.embedder()` and `awsBedrock.reranker()` work the same way for embedding and rerank models.
 
 You can also register models up front with the `customModels` option when initializing the plugin:
 
@@ -661,7 +670,24 @@ See the [Lambda example](./examples/lambda) for a complete working project with 
 
 ## Supported models
 
-This plugin supports all currently available **Chat/Completion** and **Embeddings** models from AWS Bedrock. This plugin supports image input and multimodal models.
+| Kind | What the plugin supports |
+|---|---|
+| Chat | Every Converse model: Anthropic Claude, Amazon Nova, Meta Llama, Mistral, Cohere Command, AI21 Jamba, Google Gemma and newer models by ID. Text, images, documents and video in; text, JSON, tool calls and reasoning out; streaming |
+| Embeddings | Titan Text v1/v2, Titan Multimodal, Cohere Embed v3/v4, Nova Multimodal Embeddings |
+| Reranking | Cohere Rerank 3.5 |
+| Image generation | Titan Image Generator, Nova Canvas, Stable Diffusion XL, Stable Diffusion 3.5, Stable Image Core and Ultra |
+
+Your AWS account needs [model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) to each model in the region you call it from. Many newer models, including Claude 4.x, are only offered through cross-region inference profiles; see [Configuration with Inference Endpoint](#configuration-with-inference-endpoint).
+
+### Known limitations
+
+- Bedrock does not fetch remote media. Pass images, documents and videos as base64 data URLs or `s3://` URIs.
+- Converse has no "none" tool choice. With `toolChoice: 'none'`, no tools are sent and earlier tool calls and results reach the model as text.
+- `toolChoice: 'required'` and a named tool (`config.toolChoice`) are sent only to models that support them: Claude 3 and later, Nova and Mistral Large. Other models, and models the plugin doesn't know, get their tools with no `toolChoice` (Bedrock's default is `auto`). Both forced choices hold only until a tool result is in the conversation after the last user message, then the choice is `auto`, so Genkit's tool loop can finish.
+- Amazon Rerank 1.0 isn't supported: AWS documents it only for the `bedrock-agent-runtime` Rerank API, not InvokeModel.
+- In JSON mode, a response cut off by `maxOutputTokens`, or one that isn't valid JSON, comes back as text with no data part, as with Genkit's other model plugins. Empty output (for example when a guardrail intervenes) also comes back as text, not as an empty object. Genkit then parses and validates `response.output` itself, so check `finishReason` (`'length'`) before trusting the output of a cut-off response.
+- Image generation takes a text prompt; image-to-image tasks (inpainting, variations) aren't supported yet.
+- Embeddings and image generation call `InvokeModel` once per document or request, so large batches are bounded by your Bedrock quotas.
 
 ## API Reference
 
@@ -669,7 +695,7 @@ You can find the full API reference in the [API Reference Documentation](https:/
 
 ## Contributing
 
-Want to contribute to the project? That's awesome! Head over to our [Contribution Guidelines](https://github.com/genkit-ai/aws-bedrock-js-plugin/blob/main/CONTRIBUTING.md).
+Want to contribute to the project? That's awesome! Head over to our [Contribution Guidelines](https://github.com/genkit-ai/aws-bedrock-js-plugin/blob/main/CONTRIBUTING.md), which cover building, formatting, the unit tests (`npm test`) and the opt-in live tests against Bedrock (`npm run test:live`).
 
 ## Need support?
 
