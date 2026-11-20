@@ -30,6 +30,7 @@ jobs:
       run: |
         node -e "require('./lib/index.js')"
         node --input-type=module -e "await import('./lib/index.mjs')"
+    - run: npm test
     - name: SonarCloud Scan
       if: env.SONAR_TOKEN != null
       uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0

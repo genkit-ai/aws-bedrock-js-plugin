@@ -100,6 +100,16 @@ npm run build
 
 Or with the `npm: build` VSCode task. More about VSCode tasks [here](https://code.visualstudio.com/Docs/editor/tasks).
 
+### Running the Tests
+
+The unit tests use the Node.js test runner through `tsx`, like the plugins in the genkit repo. They stub the Bedrock client, so they need no AWS credentials:
+
+```
+npm test
+```
+
+Tests live in `tests/`, named `*_test.ts`; run one file with `npm run test:file tests/converse_test.ts`. Please add or update tests with every bug fix or feature.
+
 ### Formatting
 
 Code is formatted with Prettier, using the same settings as the [genkit repo](https://github.com/genkit-ai/genkit). Format before you commit; CI checks it:
