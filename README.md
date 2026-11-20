@@ -376,6 +376,23 @@ Amazon Rerank 1.0 (`amazon.rerank-v1:0`) isn't supported. AWS documents it only 
 
 The `cohereRerank35V1` model reference is deprecated: rerank models can't be called through `generate()`, so it is no longer registered as a model.
 
+### Image generation
+
+Titan Image Generator v2, Nova Canvas, Stable Diffusion 3.5 Large, Stable Image Core and Stable Image Ultra are registered as image models. The prompt is the text of the latest user message, and each image comes back as a media part, `image/png` unless a Stable Diffusion 3.5 or Stable Image model is asked for another `output_format`:
+
+```typescript
+import { amazonNovaCanvasV1 } from 'genkitx-aws-bedrock';
+
+const response = await ai.generate({
+  model: amazonNovaCanvasV1,
+  prompt: 'A watercolour of a lighthouse at dawn',
+  config: { numberOfImages: 1, width: 1024, height: 1024, negativePrompt: 'people' },
+});
+const image = response.media; // { url: 'data:image/png;base64,...', contentType: 'image/png' }
+```
+
+Config fields a family doesn't take are ignored for it. For Titan and Nova Canvas, `imageGenerationConfig` is merged over the typed fields. Unknown fields are sent as-is to Stability models; set `output_format: 'jpeg'` or `'webp'` on Stable Diffusion 3.5 and Stable Image models and the media part is labelled `image/jpeg` or `image/webp`. Titan, Nova Canvas and Stable Diffusion XL always return PNG, and an `output_format` is ignored for them. Other image model IDs, including Stable Diffusion XL, can be added with `customModels` and are routed to the right request shape. Filtered output finishes with `finishReason: 'blocked'`.
+
 ## Using Custom Models
 
 If you want to use a model that is not exported by this plugin, you can register it using the `customModels` option when initializing the plugin:

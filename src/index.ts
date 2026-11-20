@@ -97,6 +97,12 @@ import {
   SUPPORTED_AWS_BEDROCK_MODELS,
 } from './aws_bedrock_llms.js';
 
+import {
+  awsBedrockImageModel,
+  imageFamily,
+  ImageGenerationConfigSchema,
+  SUPPORTED_IMAGE_MODELS,
+} from './image.js';
 import { awsBedrockReranker, SUPPORTED_RERANKERS } from './rerank.js';
 
 import {
@@ -186,6 +192,16 @@ export {
 };
 
 export {
+  amazonNovaCanvasV1,
+  amazonTitanImageGeneratorV2,
+  ImageGenerationConfigSchema,
+  stabilitySd35LargeV1,
+  stabilityStableImageCoreV1,
+  stabilityStableImageUltraV1,
+  type ImageGenerationConfig,
+} from './image.js';
+
+export {
   cohereRerank35,
   RerankConfigSchema,
   type RerankConfig,
@@ -268,7 +284,9 @@ export interface PluginOptions extends BedrockRuntimeClientConfig {
 export function defineAwsBedrockModel(
   name: string,
   options?: PluginOptions
-): ModelAction<typeof AwsBedrockConfigSchema> {
+): ModelAction<
+  typeof AwsBedrockConfigSchema | typeof ImageGenerationConfigSchema
+> {
   const client = new BedrockRuntimeClient(options || {});
 
   const region =
@@ -286,7 +304,10 @@ export function defineAwsBedrockModel(
     inferenceRegion = 'apac';
   }
 
-  return awsBedrockModel(name, client, inferenceRegion);
+  // Same routing as customModels: image model IDs get the image model.
+  return imageFamily(name)
+    ? awsBedrockImageModel(name, client)
+    : awsBedrockModel(name, client, inferenceRegion);
 }
 
 export function awsBedrock(options?: PluginOptions) {
@@ -319,11 +340,26 @@ export function awsBedrock(options?: PluginOptions) {
         actions.push(awsBedrockModel(name, client, inferenceRegion));
       }
 
-      // Register custom models if provided
+      // Register custom models if provided, skipping ones registered below
+      // or above, which would otherwise be defined twice.
       if (options?.customModels) {
-        for (const name of options.customModels) {
-          actions.push(awsBedrockModel(name, client, inferenceRegion));
+        const registered = new Set([
+          ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)),
+          ...Object.keys(SUPPORTED_IMAGE_MODELS),
+        ]);
+        for (const name of new Set(options.customModels)) {
+          if (registered.has(name)) continue;
+          actions.push(
+            imageFamily(name)
+              ? awsBedrockImageModel(name, client)
+              : awsBedrockModel(name, client, inferenceRegion)
+          );
         }
+      }
+
+      // Register image models
+      for (const name of Object.keys(SUPPORTED_IMAGE_MODELS)) {
+        actions.push(awsBedrockImageModel(name, client));
       }
 
       // Register embedders
