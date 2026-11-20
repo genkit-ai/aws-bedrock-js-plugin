@@ -495,6 +495,11 @@ awsBedrock.reranker = (name: string) =>
   rerankerRef({
     name: `${PLUGIN}/${name}`,
     configSchema: RerankConfigSchema,
+    // genkit's rerank() looks a reference up in the registry only if it has
+    // `info`; without it the reference is called as if it were the action.
+    info: (
+      SUPPORTED_RERANKERS as Record<string, { info?: { label?: string } }>
+    )[name]?.info ?? { label: `AWS Bedrock - ${name}` },
   });
 
 export default awsBedrock;

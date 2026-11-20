@@ -150,6 +150,18 @@ describe('plugin registration', () => {
     }
   });
 
+  it('gives reranker references the info genkit needs to resolve them', async () => {
+    const ai = genkit({ plugins: [plugin()] });
+    for (const id of ['cohere.rerank-v3-5:0', 'cohere.rerank-v4-0-pro']) {
+      const ref = awsBedrock.reranker(id);
+      // rerank() resolves a reference through the registry only when it has
+      // `info`; otherwise it calls the reference as the action.
+      assert.ok(ref.info?.label, `${id} has no info`);
+    }
+    const ref = awsBedrock.reranker('cohere.rerank-v3-5:0');
+    assert.ok(await ai.registry.lookupAction(`/reranker/${ref.name}`));
+  });
+
   it('registers the rerankers', async () => {
     const ai = genkit({ plugins: [plugin()] });
     assert.ok(
