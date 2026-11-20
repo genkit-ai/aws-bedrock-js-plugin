@@ -28,6 +28,7 @@ import {
   DocumentFormat,
   ImageFormat,
   OutputFormatType,
+  ReasoningContentBlock,
   SystemContentBlock,
   TokenUsage,
   Tool,
@@ -302,6 +303,78 @@ export function getSystemMessage(
 }
 
 /**
+ * Part metadata keys that carry Bedrock reasoning across turns. Claude
+ * rejects a follow-up request unless its signed (or redacted) reasoning is
+ * sent back unchanged, so the signature and the redacted bytes (base64) are
+ * kept on the reasoning part. The keys match the Go plugin.
+ */
+export const REASONING_SIGNATURE_KEY = 'bedrockReasoningSignature';
+export const REDACTED_REASONING_KEY = 'bedrockRedactedContent';
+
+/**
+ * Converts a Bedrock reasoning block to a Genkit reasoning part, or returns
+ * undefined for an empty block.
+ */
+export function fromAwsBedrockReasoning(
+  block: ReasoningContentBlock
+): Part | undefined {
+  if (block.redactedContent?.length) {
+    return {
+      reasoning: '',
+      metadata: {
+        [REDACTED_REASONING_KEY]: Buffer.from(block.redactedContent).toString(
+          'base64'
+        ),
+      },
+    };
+  }
+  const text = block.reasoningText?.text;
+  const signature = block.reasoningText?.signature;
+  if (!text && !signature) return undefined;
+  return signature
+    ? {
+        reasoning: text ?? '',
+        metadata: { [REASONING_SIGNATURE_KEY]: signature },
+      }
+    : { reasoning: text ?? '' };
+}
+
+/**
+ * Converts a Genkit reasoning part back to Bedrock reasoning blocks. Only
+ * reasoning that Bedrock produced (it carries a signature or redacted bytes)
+ * is sent; reasoning from other providers is dropped, since Bedrock would
+ * reject it.
+ */
+function toAwsBedrockReasoning(part: Part): ContentBlock[] {
+  const redacted = part.metadata?.[REDACTED_REASONING_KEY];
+  if (typeof redacted === 'string' && redacted) {
+    return [
+      {
+        reasoningContent: {
+          redactedContent: new Uint8Array(Buffer.from(redacted, 'base64')),
+        },
+      },
+    ];
+  }
+  const signature = part.metadata?.[REASONING_SIGNATURE_KEY];
+  // Claude can sign reasoning with empty text; it still has to go back.
+  if (
+    typeof signature === 'string' &&
+    signature &&
+    typeof part.reasoning === 'string'
+  ) {
+    return [
+      {
+        reasoningContent: {
+          reasoningText: { text: part.reasoning, signature },
+        },
+      },
+    ];
+  }
+  return [];
+}
+
+/**
  * Converts one Genkit part of a user, model or tool message to Bedrock
  * content blocks.
  */
@@ -339,6 +412,9 @@ function toContentBlocks(part: Part, imageFormat: ImageFormat): ContentBlock[] {
         },
       },
     ];
+  }
+  if (part.reasoning !== undefined) {
+    return toAwsBedrockReasoning(part);
   }
   if (part.data !== undefined) {
     return [{ text: JSON.stringify(part.data) }];
@@ -493,10 +569,30 @@ export function jsonOutputPart(text: string, stopReason?: string): Part {
 }
 
 /**
+ * Builds the final message content from the parts of a response. In JSON
+ * mode, a response without tool calls has its text parsed into one data
+ * part, after any reasoning (see jsonOutputPart for truncated output).
+ */
+export function finalContent(
+  content: Part[],
+  jsonMode: boolean,
+  stopReason?: string
+): Part[] {
+  const hasToolRequests = content.some((p) => p.toolRequest);
+  if (jsonMode && !hasToolRequests) {
+    const reasoning = content.filter((p) => p.reasoning !== undefined);
+    const text = content.map((p) => p.text ?? '').join('');
+    return [...reasoning, jsonOutputPart(text, stopReason)];
+  }
+  return content.length > 0 ? content : [{ text: '' }];
+}
+
+/**
  * Converts a Converse response to a Genkit response.
  *
- * Text and tool calls are kept in the order Bedrock returned them. In JSON
- * mode, a response without tool calls has its text parsed into a data part.
+ * Reasoning, text and tool calls are kept in the order Bedrock returned
+ * them. In JSON mode, a response without tool calls has its text parsed into
+ * a data part.
  */
 export function fromAwsBedrockChoice(
   choice: ConverseCommandOutput,
@@ -514,21 +610,13 @@ export function fromAwsBedrockChoice(
           input: block.toolUse.input,
         },
       });
+    } else if (block.reasoningContent) {
+      const part = fromAwsBedrockReasoning(block.reasoningContent);
+      if (part) content.push(part);
     }
   }
 
-  const hasToolRequests = content.some((p) => p.toolRequest);
-  let message: Part[] = content;
-  if (jsonMode && !hasToolRequests) {
-    message = [
-      jsonOutputPart(
-        content.map((p) => p.text ?? '').join(''),
-        choice.stopReason
-      ),
-    ];
-  } else if (content.length === 0) {
-    message = [{ text: '' }];
-  }
+  const message = finalContent(content, jsonMode, choice.stopReason);
 
   return {
     finishReason: fromAwsBedrockStopReason(choice.stopReason),

@@ -279,6 +279,25 @@ const response = await ai.generate({
 
 The schema is exported as `AwsBedrockConfigSchema`.
 
+### Reasoning
+
+Turn on extended thinking through `additionalModelRequestFields` (for Claude, `thinking`). The model's reasoning comes back as `reasoning` parts, streamed as it is generated, and `response.text` leaves it out:
+
+```typescript
+const response = await ai.generate({
+  model: anthropicClaudeSonnet45V1('us'),
+  prompt: 'What is 17 * 23?',
+  config: {
+    maxOutputTokens: 4096,
+    additionalModelRequestFields: { thinking: { type: 'enabled', budget_tokens: 1024 } },
+  },
+});
+console.log(response.reasoning); // the model's thinking
+console.log(response.text); // the answer
+```
+
+Claude signs its reasoning and sometimes redacts it, and rejects a follow-up turn unless that reasoning is sent back unchanged. The plugin keeps the signature in the part's `metadata.bedrockReasoningSignature` and redacted reasoning in `metadata.bedrockRedactedContent`, and sends both back when the message is in the history. This matters for tool calls with thinking turned on. Reasoning from other providers has no signature, so it is not sent to Bedrock.
+
 ### Prompt caching
 
 Mark a part with `metadata.cachePoint` to put a Bedrock cache point after it. Use `true` for the default cache point, or `{ ttl: '1h' }` to set the TTL on models that support it. Cache points work in system and conversation messages. Cache reads are reported in `usage.cachedContentTokens`, and cache writes in `usage.custom.cacheWriteInputTokens`.
