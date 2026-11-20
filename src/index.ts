@@ -19,9 +19,9 @@ import {
   BedrockRuntimeClient,
   BedrockRuntimeClientConfig,
 } from '@aws-sdk/client-bedrock-runtime';
-import { GenerationCommonConfigSchema } from 'genkit';
 import { ModelAction } from 'genkit/model';
 import { genkitPluginV2, type ResolvableAction } from 'genkit/plugin';
+import { AwsBedrockConfigSchema } from './types.js';
 
 import {
   amazonNova2MultimodalEmbeddingsV1,
@@ -184,6 +184,12 @@ export {
 };
 
 export {
+  AwsBedrockConfigSchema,
+  CachePointSchema,
+  type AwsBedrockConfig,
+} from './types.js';
+
+export {
   amazonNova2MultimodalEmbeddingsV1,
   amazonTitanEmbedMultimodalV2,
   amazonTitanEmbedTextG1V1,
@@ -254,7 +260,7 @@ export interface PluginOptions extends BedrockRuntimeClientConfig {
 export function defineAwsBedrockModel(
   name: string,
   options?: PluginOptions
-): ModelAction<typeof GenerationCommonConfigSchema> {
+): ModelAction<typeof AwsBedrockConfigSchema> {
   const client = new BedrockRuntimeClient(options || {});
 
   const region =

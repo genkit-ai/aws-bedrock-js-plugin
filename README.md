@@ -234,6 +234,47 @@ const response = await ai.generate({
 });
 ```
 
+### Per-call configuration
+
+Every model accepts Genkit's common config (`temperature`, `maxOutputTokens`, `topP`, `stopSequences`) plus these Converse request fields:
+
+| Field | What it does |
+|---|---|
+| `additionalModelRequestFields` | Model-specific fields, such as Claude `thinking` or Nova `inferenceConfig.topK` |
+| `additionalModelResponseFieldPaths` | JSON pointers to model-specific response fields to return |
+| `guardrailConfig` | A Bedrock guardrail: `guardrailIdentifier`, `guardrailVersion`, `trace`, and `streamProcessingMode` when streaming |
+| `performanceConfig` | `{ latency: 'optimized' }` for latency-optimized inference |
+| `serviceTier` | `'default'`, `'priority'`, `'flex'` or `'reserved'` |
+| `requestMetadata` | String key-value pairs logged with the request |
+
+```typescript
+const response = await ai.generate({
+  model: anthropicClaudeSonnet45V1('us'),
+  prompt: 'Prove that there are infinitely many primes.',
+  config: {
+    maxOutputTokens: 4096,
+    additionalModelRequestFields: {
+      thinking: { type: 'enabled', budget_tokens: 2048 },
+    },
+    guardrailConfig: { guardrailIdentifier: 'my-guardrail', guardrailVersion: '1' },
+  },
+});
+```
+
+The schema is exported as `AwsBedrockConfigSchema`.
+
+### Prompt caching
+
+Mark a part with `metadata.cachePoint` to put a Bedrock cache point after it. Use `true` for the default cache point, or `{ ttl: '1h' }` to set the TTL on models that support it. Cache points work in system and conversation messages. Cache reads are reported in `usage.cachedContentTokens`, and cache writes in `usage.custom.cacheWriteInputTokens`.
+
+```typescript
+const response = await ai.generate({
+  model: anthropicClaudeSonnet45V1('us'),
+  system: [{ text: longInstructions, metadata: { cachePoint: true } }],
+  prompt: 'Summarise the instructions.',
+});
+```
+
 ### Media input
 
 Images, documents and videos are sent to Bedrock as the part's bytes, picked by the part's content type:

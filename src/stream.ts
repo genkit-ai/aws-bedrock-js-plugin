@@ -23,8 +23,9 @@ import {
   ConverseStreamCommandOutput,
   ToolUseBlockStart,
 } from '@aws-sdk/client-bedrock-runtime';
-import { GenerateRequest, GenerationCommonConfigSchema, Part } from 'genkit';
+import { GenerateRequest, Part } from 'genkit';
 import { GenerateResponseChunkData, GenerateResponseData } from 'genkit/model';
+import { AwsBedrockConfigSchema } from './types.js';
 
 /**
  * Runs a ConverseStream request, forwarding text deltas to `sendChunk`, and
@@ -33,7 +34,7 @@ import { GenerateResponseChunkData, GenerateResponseData } from 'genkit/model';
 export async function converseStream(
   client: BedrockRuntimeClient,
   body: ConverseStreamCommandInput,
-  request: GenerateRequest<typeof GenerationCommonConfigSchema>,
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>,
   sendChunk: (chunk: GenerateResponseChunkData) => void,
   abortSignal: AbortSignal
 ): Promise<GenerateResponseData> {

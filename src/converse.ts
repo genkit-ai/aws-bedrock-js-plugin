@@ -18,6 +18,8 @@
 
 import {
   Message as AwsMessge,
+  CachePointBlock,
+  CacheTTL,
   ContentBlock,
   ConversationRole,
   ConverseCommandInput,
@@ -31,19 +33,14 @@ import {
   Tool,
   VideoFormat,
 } from '@aws-sdk/client-bedrock-runtime';
-import {
-  GenerateRequest,
-  GenerationCommonConfigSchema,
-  MessageData,
-  Part,
-  Role,
-} from 'genkit';
+import { GenerateRequest, MessageData, Part, Role } from 'genkit';
 import {
   GenerationUsage,
   ModelResponseData,
   ToolDefinition,
 } from 'genkit/model';
 import { createHash } from 'node:crypto';
+import { AwsBedrockConfig, AwsBedrockConfigSchema } from './types.js';
 
 import { SUPPORTED_AWS_BEDROCK_MODELS } from './models.js';
 
@@ -209,6 +206,20 @@ function generateFilenameFromFormat(
 }
 
 /**
+ * Returns the Bedrock cache point a part asks for in `metadata.cachePoint`,
+ * if any. See CachePointSchema.
+ */
+function cachePointFor(part: Part): CachePointBlock | undefined {
+  const value = part.metadata?.cachePoint;
+  if (value === true || value === 'default') return { type: 'default' };
+  if (value && typeof value === 'object') {
+    const { ttl } = value as { ttl?: CacheTTL };
+    return ttl ? { type: 'default', ttl } : { type: 'default' };
+  }
+  return undefined;
+}
+
+/**
  * Converts a text or media part to a Bedrock content block.
  *
  * Images, documents and videos are chosen by MIME type, taken from the part's
@@ -281,6 +292,8 @@ export function getSystemMessage(
     if (message.role !== 'system') continue;
     for (const part of message.content) {
       if (part.text) blocks.push({ text: part.text });
+      const cachePoint = cachePointFor(part);
+      if (cachePoint) blocks.push({ cachePoint });
     }
   }
   return blocks.length > 0 ? blocks : null;
@@ -349,9 +362,11 @@ export function toAwsBedrockMessages(
     const role = toAwsBedrockRole(message.role);
     if (role === 'system') continue;
 
-    const content = message.content.flatMap((part) =>
-      toContentBlocks(part, imageFormat)
-    );
+    const content = message.content.flatMap((part) => {
+      const blocks = toContentBlocks(part, imageFormat);
+      const cachePoint = cachePointFor(part);
+      return cachePoint ? [...blocks, { cachePoint }] : blocks;
+    });
     if (content.length === 0) continue;
 
     const last = awsBedrockMsgs[awsBedrockMsgs.length - 1];
@@ -526,7 +541,7 @@ const JSON_INSTRUCTION =
 
 export function toAwsBedrockRequestBody(
   modelName: string,
-  request: GenerateRequest<typeof GenerationCommonConfigSchema>,
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>,
   inferenceRegion: string
 ) {
   const model = SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)[modelName] || {
@@ -562,6 +577,7 @@ export function toAwsBedrockRequestBody(
     ? getSystemMessage(requestMessages) || []
     : [];
 
+  const config: AwsBedrockConfig = request.config ?? {};
   const modelString = (request.config?.version ||
     model.version ||
     modelName) as string;
@@ -597,6 +613,12 @@ export function toAwsBedrockRequestBody(
       //n: request.candidates,
       stopSequences: request.config?.stopSequences,
     },
+    additionalModelRequestFields: config.additionalModelRequestFields,
+    additionalModelResponseFieldPaths: config.additionalModelResponseFieldPaths,
+    guardrailConfig: config.guardrailConfig,
+    performanceConfig: config.performanceConfig,
+    serviceTier: config.serviceTier ? { type: config.serviceTier } : undefined,
+    requestMetadata: config.requestMetadata,
   };
 
   return body;
