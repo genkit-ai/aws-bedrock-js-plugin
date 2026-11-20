@@ -16,16 +16,16 @@
  */
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 
-import { embedderRef as createEmbedderRef } from "genkit";
+import { embedderRef as createEmbedderRef } from 'genkit';
 
-import { z } from "zod";
-import { embedder } from "genkit/plugin";
 import {
   BedrockRuntimeClient,
   InvokeModelCommand,
   InvokeModelCommandInput,
   InvokeModelCommandOutput,
-} from "@aws-sdk/client-bedrock-runtime";
+} from '@aws-sdk/client-bedrock-runtime';
+import { embedder } from 'genkit/plugin';
+import { z } from 'zod';
 
 export const TextEmbeddingConfigSchema = z.object({
   dimensions: z.number().optional(),
@@ -38,99 +38,99 @@ export type TextEmbeddingGeckoConfig = z.infer<
 export const TextEmbeddingInputSchema = z.string();
 
 export const amazonNova2MultimodalEmbeddingsV1 = createEmbedderRef({
-  name: "aws-bedrock/amazon.nova-2-multimodal-embeddings-v1:0",
+  name: 'aws-bedrock/amazon.nova-2-multimodal-embeddings-v1:0',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1024,
-    label: "Amazon - nova-2-multimodal-embeddings-v1:0",
+    label: 'Amazon - nova-2-multimodal-embeddings-v1:0',
     supports: {
-      input: ["text", "image", "video"],
-      multilingual: true
+      input: ['text', 'image', 'video'],
+      multilingual: true,
     },
   },
 });
 
 export const amazonTitanEmbedTextV2 = createEmbedderRef({
-  name: "aws-bedrock/amazon.titan-embed-text-v2:0",
+  name: 'aws-bedrock/amazon.titan-embed-text-v2:0',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1024,
-    label: "Amazon - titan-embed-text-v2:0",
+    label: 'Amazon - titan-embed-text-v2:0',
     supports: {
-      input: ["text"],
+      input: ['text'],
     },
   },
 });
 
 export const amazonTitanEmbedMultimodalV2 = createEmbedderRef({
-  name: "aws-bedrock/amazon.titan-embed-image-v1",
+  name: 'aws-bedrock/amazon.titan-embed-image-v1',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1024,
-    label: "Amazon - titan-embed-multimodal-v2:0",
+    label: 'Amazon - titan-embed-multimodal-v2:0',
     supports: {
-      input: ["text", "image"],
+      input: ['text', 'image'],
     },
   },
 });
 
 export const amazonTitanEmbedTextG1V1 = createEmbedderRef({
-  name: "aws-bedrock/amazon.titan-embed-text-v1",
+  name: 'aws-bedrock/amazon.titan-embed-text-v1',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1536,
-    label: "Amazon - titan-embed-text-v1",
+    label: 'Amazon - titan-embed-text-v1',
     supports: {
-      input: ["text"],
+      input: ['text'],
     },
   },
 });
 
 export const cohereEmbedV4 = createEmbedderRef({
-  name: "aws-bedrock/cohere.embed-v4:0",
+  name: 'aws-bedrock/cohere.embed-v4:0',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1024,
-    label: "Cohere - Embed v4",
+    label: 'Cohere - Embed v4',
     supports: {
-      input: ["text", "image"],
-      multilingual: true
+      input: ['text', 'image'],
+      multilingual: true,
     },
   },
 });
 
 export const cohereEmbedEnglishV3 = createEmbedderRef({
-  name: "aws-bedrock/cohere.embed-english-v3",
+  name: 'aws-bedrock/cohere.embed-english-v3',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1024,
-    label: "Cohere - embed-english-v3",
+    label: 'Cohere - embed-english-v3',
     supports: {
-      input: ["text"],
+      input: ['text'],
     },
   },
 });
 
 export const cohereEmbedMultilingualV3 = createEmbedderRef({
-  name: "aws-bedrock/cohere.embed-multilingual-v3",
+  name: 'aws-bedrock/cohere.embed-multilingual-v3',
   configSchema: TextEmbeddingConfigSchema,
   info: {
     dimensions: 1024,
-    label: "Cohere - embed-multilingual-v3",
+    label: 'Cohere - embed-multilingual-v3',
     supports: {
-      input: ["text"],
+      input: ['text'],
     },
   },
 });
 
 export const SUPPORTED_EMBEDDING_MODELS: Record<string, any> = {
-  "amazon.titan-embed-text-v2:0": amazonTitanEmbedTextV2,
-  "amazon.titan-embed-image-v1": amazonTitanEmbedMultimodalV2,
-  "amazon.titan-embed-text-v1": amazonTitanEmbedTextG1V1,
-  "cohere.embed-english-v3": cohereEmbedEnglishV3,
-  "cohere.embed-multilingual-v3": cohereEmbedMultilingualV3,
-  "cohere.embed-v4:0": cohereEmbedV4,
-  "amazon.nova-2-multimodal-embeddings-v1:0": amazonNova2MultimodalEmbeddingsV1,
+  'amazon.titan-embed-text-v2:0': amazonTitanEmbedTextV2,
+  'amazon.titan-embed-image-v1': amazonTitanEmbedMultimodalV2,
+  'amazon.titan-embed-text-v1': amazonTitanEmbedTextG1V1,
+  'cohere.embed-english-v3': cohereEmbedEnglishV3,
+  'cohere.embed-multilingual-v3': cohereEmbedMultilingualV3,
+  'cohere.embed-v4:0': cohereEmbedV4,
+  'amazon.nova-2-multimodal-embeddings-v1:0': amazonNova2MultimodalEmbeddingsV1,
 };
 
 export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
@@ -147,9 +147,9 @@ export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
       const { input, options } = request;
       const body: InvokeModelCommandInput = {
         modelId: name,
-        contentType: "application/json",
+        contentType: 'application/json',
         body: JSON.stringify({
-          inputText: input.map((d: any) => d.text).join(","),
+          inputText: input.map((d: any) => d.text).join(','),
           dimensions: options?.dimensions,
         }),
       };
@@ -167,6 +167,6 @@ export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
           },
         ],
       };
-    },
+    }
   );
 }

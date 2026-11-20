@@ -24,6 +24,7 @@ jobs:
         cache: 'npm'
     - name: install
       run: npm install --frozen-lockfile
+    - run: npm run format:check
     - run: npm run build
     - name: import the CJS and ESM builds
       run: |
