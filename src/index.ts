@@ -122,7 +122,7 @@ import {
   ImageGenerationConfigSchema,
   SUPPORTED_IMAGE_MODELS,
 } from './image.js';
-import { modelInfoFor } from './models.js';
+import { inferenceProfileGeography, modelInfoFor } from './models.js';
 import {
   awsBedrockReranker,
   RerankConfigSchema,
@@ -280,15 +280,27 @@ export { type PluginOptions } from './types.js';
 
 const PLUGIN = 'aws-bedrock';
 
-function inferenceRegionFor(options?: PluginOptions): string {
-  const region =
-    typeof options?.region === 'string' ? options.region : undefined;
-  if (!region) return 'us'; // default to us
-  if (region.includes('us-gov')) return 'us-gov';
-  if (region.includes('us')) return 'us';
-  if (region.includes('eu-')) return 'eu';
-  if (region.includes('ap-')) return 'apac';
-  return '';
+/**
+ * The inference-profile geography for the region the AWS SDK resolves:
+ * options.region (a string or a provider), AWS_REGION, or the shared config
+ * profile. Falls back to "us", as before, when no region resolves.
+ */
+async function resolveInferenceRegion(
+  client: BedrockRuntimeClient,
+  options?: PluginOptions
+): Promise<string> {
+  try {
+    const region =
+      typeof client.config?.region === 'function'
+        ? await client.config.region()
+        : options?.region;
+    if (typeof region === 'string' && region) {
+      return inferenceProfileGeography(region);
+    }
+  } catch {
+    // No region configured anywhere; the client reports it on first call.
+  }
+  return 'us';
 }
 
 function clientFor(options?: PluginOptions): BedrockRuntimeClient {
@@ -339,11 +351,14 @@ function modelFor(id: string, client: BedrockRuntimeClient) {
 
 function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
   const client = clientFor(options);
-  const inferenceRegion = inferenceRegionFor(options);
+  let regionPromise: Promise<string> | undefined;
+  const region = () =>
+    (regionPromise ??= resolveInferenceRegion(client, options));
 
   return genkitPluginV2({
     name: PLUGIN,
     init: async () => {
+      const inferenceRegion = await region();
       const actions: ResolvableAction[] = [];
 
       // Register models
@@ -408,7 +423,7 @@ function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
     },
 
     list: async () => [
-      ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)).map((id) =>
+      ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(await region())).map((id) =>
         modelActionMetadata({
           name: `${PLUGIN}/${id}`,
           info: modelInfoFor(id),

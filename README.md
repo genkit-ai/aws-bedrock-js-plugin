@@ -132,6 +132,10 @@ const ai = genkit({
 });
 ```
 
+The plugin registers its models under the inference-profile prefix for your region's geography: `us.` for `us-*`, `us-gov.` for `us-gov-*`, `eu.` for `eu-*` and `apac.` for `ap-*`. The region comes from the AWS SDK's usual chain: the plugin's `region` option (a string or a provider function), `AWS_REGION`, or your AWS config profile. If no region resolves, the plugin uses `us.` names as before. In regions with no inference-profile geography, such as `ca-central-1`, models are registered by their in-region IDs.
+
+To use another profile, such as `global.`, `jp.` or `au.`, pass its ID to `awsBedrock.model()` (see [Using Custom Models](#using-custom-models)).
+
 You can check more information about the available models in the [AWS Bedrock PLugin documentation](https://xavidop.github.io/genkitx-aws-bedrock/).
 
 ### Basic examples

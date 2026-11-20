@@ -21,13 +21,35 @@ import { modelRef } from 'genkit/model';
 
 import { AwsBedrockConfigSchema } from './types.js';
 
+/**
+ * Returns the prefix of a cross-region inference-profile ID ("us." for
+ * "us"), or nothing for an empty geography, which means in-region model IDs.
+ */
+function profilePrefix(inferenceRegion: string): string {
+  return inferenceRegion ? `${inferenceRegion}.` : '';
+}
+
+/**
+ * Returns the cross-region inference-profile geography for an AWS region:
+ * us, us-gov, eu or apac. Regions with no geography return "", and the
+ * plugin uses in-region model IDs there.
+ */
+export function inferenceProfileGeography(region: string): string {
+  const r = region.trim().toLowerCase();
+  if (r.startsWith('us-gov-')) return 'us-gov';
+  if (r.startsWith('us-')) return 'us';
+  if (r.startsWith('eu-')) return 'eu';
+  if (r.startsWith('ap-')) return 'apac';
+  return '';
+}
+
 export const amazonNova2LiteV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.amazon.nova-2-lite-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}amazon.nova-2-lite-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.amazon.nova-2-lite-v1:0`],
+      versions: [`${profilePrefix(inferenceRegion)}amazon.nova-2-lite-v1:0`],
       label: 'Amazon - Nova 2 Lite V1',
       supports: {
         multiturn: true,
@@ -46,9 +68,9 @@ export const amazonNovaPremierV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.amazon.nova-premier-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}amazon.nova-premier-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.amazon.nova-premier-v1:0`],
+      versions: [`${profilePrefix(inferenceRegion)}amazon.nova-premier-v1:0`],
       label: 'Amazon - Nova Premier V1',
       supports: {
         multiturn: true,
@@ -67,9 +89,9 @@ export const amazonNovaProV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.amazon.nova-pro-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}amazon.nova-pro-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.amazon.nova-pro-v1:0`],
+      versions: [`${profilePrefix(inferenceRegion)}amazon.nova-pro-v1:0`],
       label: 'Amazon - Nova Pro V1',
       supports: {
         multiturn: true,
@@ -272,9 +294,11 @@ export const anthropicClaudeSonnet4V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-20250514-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-20250514-v1:0`,
+      ],
       label: 'Anthropic - Claude Sonnet 4 V1',
       supports: {
         multiturn: true,
@@ -293,9 +317,11 @@ export const anthropicClaudeOpus4V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-20250514-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-20250514-v1:0`,
+      ],
       label: 'Anthropic - Claude Opus 4 (Legacy) V1',
       supports: {
         multiturn: true,
@@ -314,9 +340,11 @@ export const anthropicClaudeOpus41V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-1-20250805-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-1-20250805-v1:0`,
+      ],
       label: 'Anthropic - Claude Opus 4.1 V1',
       supports: {
         multiturn: true,
@@ -335,10 +363,10 @@ export const anthropicClaudeSonnet45V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-5-20250929-v1:0`,
     info: {
       versions: [
-        `${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`,
+        `${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-5-20250929-v1:0`,
       ],
       label: 'Anthropic - Claude Sonnet 4.5 V1',
       supports: {
@@ -359,9 +387,11 @@ export const anthropicClaudeHaiku45V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-haiku-4-5-20251001-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-haiku-4-5-20251001-v1:0`,
+      ],
       label: 'Anthropic - Claude Haiku 4.5 V1',
       supports: {
         multiturn: true,
@@ -381,9 +411,11 @@ export const anthropicClaudeOpus45V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-5-20251101-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-5-20251101-v1:0`,
+      ],
       label: 'Anthropic - Claude Opus 4.5 V1',
       supports: {
         multiturn: true,
@@ -403,9 +435,11 @@ export const anthropicClaudeOpus46V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-opus-4-6-v1`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-6-v1`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-opus-4-6-v1`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-6-v1`,
+      ],
       label: 'Anthropic - Claude Opus 4.6 V1',
       supports: {
         multiturn: true,
@@ -425,9 +459,11 @@ export const anthropicClaudeSonnet46V1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-sonnet-4-6`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-6`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-sonnet-4-6`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-6`,
+      ],
       label: 'Anthropic - Claude Sonnet 4.6',
       supports: {
         multiturn: true,
@@ -447,9 +483,11 @@ export const anthropicClaude35HaikuV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-5-haiku-20241022-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-5-haiku-20241022-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-3-5-haiku-20241022-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-5-haiku-20241022-v1:0`,
+      ],
       label: 'Anthropic - Claude 3.5 Haiku V1',
       supports: {
         multiturn: true,
@@ -468,9 +506,11 @@ export const anthropicClaude3HaikuV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-haiku-20240307-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-haiku-20240307-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-3-haiku-20240307-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-haiku-20240307-v1:0`,
+      ],
       label: 'Anthropic - Claude 3 Haiku V1',
       supports: {
         multiturn: true,
@@ -489,9 +529,11 @@ export const anthropicClaude3OpusV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-opus-20240229-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-opus-20240229-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-3-opus-20240229-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-opus-20240229-v1:0`,
+      ],
       label: 'Anthropic - Claude 3 Opus V1',
       supports: {
         multiturn: true,
@@ -510,10 +552,10 @@ export const anthropicClaude37SonnetV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-7-sonnet-20250219-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-7-sonnet-20250219-v1:0`,
     info: {
       versions: [
-        `${inferenceRegion}.anthropic.claude-3-7-sonnet-20250219-v1:0`,
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-7-sonnet-20250219-v1:0`,
       ],
       label: 'Anthropic - Claude 3.7 Sonnet V1',
       supports: {
@@ -533,10 +575,10 @@ export const anthropicClaude35SonnetV2 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-5-sonnet-20241022-v2:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-5-sonnet-20241022-v2:0`,
     info: {
       versions: [
-        `${inferenceRegion}.anthropic.claude-3-5-sonnet-20241022-v2:0`,
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-5-sonnet-20241022-v2:0`,
       ],
       label: 'Anthropic - Claude 3.5 Sonnet V2',
       supports: {
@@ -556,10 +598,10 @@ export const anthropicClaude35SonnetV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-5-sonnet-20240620-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-5-sonnet-20240620-v1:0`,
     info: {
       versions: [
-        `${inferenceRegion}.anthropic.claude-3-5-sonnet-20240620-v1:0`,
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-5-sonnet-20240620-v1:0`,
       ],
       label: 'Anthropic - Claude 3.5 Sonnet V1',
       supports: {
@@ -579,9 +621,11 @@ export const anthropicClaude3SonnetV1 = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.anthropic.claude-3-sonnet-20240229-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}anthropic.claude-3-sonnet-20240229-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.anthropic.claude-3-sonnet-20240229-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}anthropic.claude-3-sonnet-20240229-v1:0`,
+      ],
       label: 'Anthropic - Claude 3 Sonnet V1',
       supports: {
         multiturn: true,
@@ -895,9 +939,11 @@ export const metaLlama4Maverick17BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama4-maverick-17b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama4-maverick-17b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 4 Maverick 17b Instruct',
       supports: {
         multiturn: true,
@@ -915,9 +961,11 @@ export const metaLlama4Scout17BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama4-scout-17b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama4-scout-17b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 4 Scout 17b Instruct',
       supports: {
         multiturn: true,
@@ -935,9 +983,11 @@ export const metaLlama3370BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-3-70b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-3-70b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-3-70b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-3-70b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.3 70b Instruct',
       supports: {
         multiturn: true,
@@ -955,9 +1005,11 @@ export const metaLlama3211BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-11b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-2-11b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-2-11b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-2-11b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.2 11b Instruct',
       supports: {
         multiturn: true,
@@ -975,9 +1027,11 @@ export const metaLlama321BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-1b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-2-1b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-2-1b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-2-1b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.2 1b Instruct',
       supports: {
         multiturn: true,
@@ -995,9 +1049,11 @@ export const metaLlama323BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-3b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-2-3b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-2-3b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-2-3b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.2 3b Instruct',
       supports: {
         multiturn: true,
@@ -1015,9 +1071,11 @@ export const metaLlama3290BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-2-90b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-2-90b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-2-90b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-2-90b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.2 90b Instruct',
       supports: {
         multiturn: true,
@@ -1035,9 +1093,11 @@ export const metaLlama3170BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-1-70b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-1-70b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-1-70b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-1-70b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.1 70b Instruct',
       supports: {
         multiturn: true,
@@ -1055,9 +1115,11 @@ export const metaLlama318BInstruct = (
   inferenceRegion: string = 'us'
 ): ModelReference<typeof AwsBedrockConfigSchema> => {
   return modelRef({
-    name: `aws-bedrock/${inferenceRegion}.meta.llama3-1-8b-instruct-v1:0`,
+    name: `aws-bedrock/${profilePrefix(inferenceRegion)}meta.llama3-1-8b-instruct-v1:0`,
     info: {
-      versions: [`${inferenceRegion}.meta.llama3-1-8b-instruct-v1:0`],
+      versions: [
+        `${profilePrefix(inferenceRegion)}meta.llama3-1-8b-instruct-v1:0`,
+      ],
       label: 'Meta - Llama 3.1 8b Instruct',
       supports: {
         multiturn: true,
@@ -1107,7 +1169,7 @@ export const SUPPORTED_AWS_BEDROCK_MODELS = (
   inferenceRegion: string = 'us'
 ): Record<string, any> => {
   return {
-    [`${inferenceRegion}.amazon.nova-pro-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}amazon.nova-pro-v1:0`]:
       amazonNovaProV1(inferenceRegion),
     'amazon.nova-lite-v1:0': amazonNovaLiteV1,
     'amazon.nova-micro-v1:0': amazonNovaMicroV1,
@@ -1127,63 +1189,63 @@ export const SUPPORTED_AWS_BEDROCK_MODELS = (
     'ai21.jamba-instruct-v1:0': ai21JambaInstructV1,
     'ai21.j2-mid-v1': ai21Jurassic2MidV1,
     'ai21.j2-ultra-v1': ai21Jurassic2UltraV1,
-    [`${inferenceRegion}.meta.llama3-3-70b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-3-70b-instruct-v1:0`]:
       metaLlama3370BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama3-2-11b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-2-11b-instruct-v1:0`]:
       metaLlama3211BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama3-2-1b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-2-1b-instruct-v1:0`]:
       metaLlama321BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama3-2-3b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-2-3b-instruct-v1:0`]:
       metaLlama323BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama3-2-90b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-2-90b-instruct-v1:0`]:
       metaLlama3290BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama3-1-70b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-1-70b-instruct-v1:0`]:
       metaLlama3170BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama3-1-8b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama3-1-8b-instruct-v1:0`]:
       metaLlama318BInstruct(inferenceRegion),
     'meta.llama3-70b-instruct-v1:0': metaLlama370BInstruct,
     'meta.llama3-8b-instruct-v1:0': metaLlama38BInstruct,
     'anthropic.claude-v2:1': anthropicClaude21V1,
     'anthropic.claude-v2': anthropicClaude2V1,
     'anthropic.claude-instant-v1': anthropicClaudeInstantV1,
-    [`${inferenceRegion}.anthropic.claude-3-5-haiku-20241022-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-5-haiku-20241022-v1:0`]:
       anthropicClaude35HaikuV1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-3-7-sonnet-20250219-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-7-sonnet-20250219-v1:0`]:
       anthropicClaude37SonnetV1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-3-5-sonnet-20241022-v2:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-5-sonnet-20241022-v2:0`]:
       anthropicClaude35SonnetV2(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-3-5-sonnet-20240620-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-5-sonnet-20240620-v1:0`]:
       anthropicClaude35SonnetV1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-3-opus-20240229-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-opus-20240229-v1:0`]:
       anthropicClaude3OpusV1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-3-haiku-20240307-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-haiku-20240307-v1:0`]:
       anthropicClaude3HaikuV1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-3-sonnet-20240229-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-3-sonnet-20240229-v1:0`]:
       anthropicClaude3SonnetV1(inferenceRegion),
     // Added models
-    [`${inferenceRegion}.anthropic.claude-sonnet-4-20250514-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-20250514-v1:0`]:
       anthropicClaudeSonnet4V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-opus-4-20250514-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-20250514-v1:0`]:
       anthropicClaudeOpus4V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-opus-4-1-20250805-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-1-20250805-v1:0`]:
       anthropicClaudeOpus41V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-sonnet-4-5-20250929-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-5-20250929-v1:0`]:
       anthropicClaudeSonnet45V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-haiku-4-5-20251001-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-haiku-4-5-20251001-v1:0`]:
       anthropicClaudeHaiku45V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-opus-4-5-20251101-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-5-20251101-v1:0`]:
       anthropicClaudeOpus45V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-opus-4-6-v1`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-opus-4-6-v1`]:
       anthropicClaudeOpus46V1(inferenceRegion),
-    [`${inferenceRegion}.anthropic.claude-sonnet-4-6`]:
+    [`${profilePrefix(inferenceRegion)}anthropic.claude-sonnet-4-6`]:
       anthropicClaudeSonnet46V1(inferenceRegion),
-    [`${inferenceRegion}.meta.llama4-maverick-17b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama4-maverick-17b-instruct-v1:0`]:
       metaLlama4Maverick17BInstruct(inferenceRegion),
-    [`${inferenceRegion}.meta.llama4-scout-17b-instruct-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}meta.llama4-scout-17b-instruct-v1:0`]:
       metaLlama4Scout17BInstruct(inferenceRegion),
-    [`${inferenceRegion}.amazon.nova-2-lite-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}amazon.nova-2-lite-v1:0`]:
       amazonNova2LiteV1(inferenceRegion),
-    [`${inferenceRegion}.amazon.nova-premier-v1:0`]:
+    [`${profilePrefix(inferenceRegion)}amazon.nova-premier-v1:0`]:
       amazonNovaPremierV1(inferenceRegion),
     'mistral.magistral-small-2509': mistralMagistralSmall2509,
     'mistral.ministral-3-14b-instruct': mistralMinistral314BInstruct,
