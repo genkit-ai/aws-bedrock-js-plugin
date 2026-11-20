@@ -333,6 +333,27 @@ const response = await ai.generate({
 
 For more detailed examples and the explanation of other functionalities, refer to the [official Genkit documentation](https://genkit.dev/).
 
+### Embeddings
+
+Each document gets its own embedding, in the order you pass them. The plugin sends each model family its own request shape:
+
+| Embedder | Input | Config |
+|---|---|---|
+| `amazonTitanEmbedTextV2`, `amazonTitanEmbedTextG1V1` | text | `dimensions` (v2: 256, 512, 1024), `normalize` (v2) |
+| `amazonTitanEmbedMultimodalV2` | text, png/jpeg image, or both | `dimensions` (256, 384, 1024) |
+| `cohereEmbedEnglishV3`, `cohereEmbedMultilingualV3`, `cohereEmbedV4` | text (batched, 96 per call) or image | `inputType`, `truncate`, `dimensions` (v4) |
+| `amazonNova2MultimodalEmbeddingsV1` | text, image or video | `embeddingPurpose`, `dimensions` (256, 384, 1024 (default), 3072), `truncate` |
+
+```typescript
+const embeddings = await ai.embedMany({
+  embedder: cohereEmbedV4,
+  content: ['first document', 'second document'],
+  options: { inputType: 'search_document', dimensions: 1024 },
+});
+```
+
+Images are passed as base64 data URLs in a document's media. A document with no text or media is rejected.
+
 ## Using Custom Models
 
 If you want to use a model that is not exported by this plugin, you can register it using the `customModels` option when initializing the plugin:

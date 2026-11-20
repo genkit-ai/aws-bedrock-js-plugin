@@ -16,7 +16,11 @@
  */
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 
-import { embedderRef as createEmbedderRef } from 'genkit';
+import {
+  Document,
+  GenkitError,
+  embedderRef as createEmbedderRef,
+} from 'genkit';
 
 import {
   BedrockRuntimeClient,
@@ -24,24 +28,66 @@ import {
   InvokeModelCommandInput,
   InvokeModelCommandOutput,
 } from '@aws-sdk/client-bedrock-runtime';
+import { z } from 'genkit';
 import { embedder } from 'genkit/plugin';
-import { z } from 'zod';
+
+import { MIME_TO_IMAGE_FORMAT, MIME_TO_VIDEO_FORMAT } from './converse.js';
+import { toGenkitError } from './errors.js';
+import { baseModelId } from './models.js';
 
 export const TextEmbeddingConfigSchema = z.object({
-  dimensions: z.number().optional(),
+  dimensions: z
+    .number()
+    .optional()
+    .describe(
+      'Embedding size. Titan Text v2: 256, 512 or 1024. Titan Multimodal: 256, 384 or 1024. Cohere Embed v4: 256, 512, 1024 or 1536. Nova: 256, 384, 1024 or 3072.'
+    ),
+  inputType: z
+    .enum(['search_document', 'search_query', 'classification', 'clustering'])
+    .optional()
+    .describe('Cohere only. Defaults to search_document.'),
+  embeddingPurpose: z
+    .enum([
+      'GENERIC_INDEX',
+      'GENERIC_RETRIEVAL',
+      'TEXT_RETRIEVAL',
+      'IMAGE_RETRIEVAL',
+      'VIDEO_RETRIEVAL',
+      'DOCUMENT_RETRIEVAL',
+      'AUDIO_RETRIEVAL',
+      'CLASSIFICATION',
+      'CLUSTERING',
+    ])
+    .optional()
+    .describe('Nova only. Defaults to GENERIC_INDEX.'),
+  normalize: z.boolean().optional().describe('Titan Text v2 only.'),
+  truncate: z
+    .enum(['NONE', 'START', 'END'])
+    .optional()
+    .describe(
+      'Cohere and Nova. How to cut text that is too long. Defaults to END.'
+    ),
 });
 
 export type TextEmbeddingGeckoConfig = z.infer<
   typeof TextEmbeddingConfigSchema
 >;
+export type AwsBedrockEmbedderConfig = TextEmbeddingGeckoConfig;
 
 export const TextEmbeddingInputSchema = z.string();
+
+/**
+ * The vector size the Nova embedder advertises and sends when no dimensions
+ * are set. Bedrock's own default is 3072, which wouldn't match the 1024 the
+ * embedder reports.
+ */
+const NOVA_DEFAULT_DIMENSION = 1024;
 
 export const amazonNova2MultimodalEmbeddingsV1 = createEmbedderRef({
   name: 'aws-bedrock/amazon.nova-2-multimodal-embeddings-v1:0',
   configSchema: TextEmbeddingConfigSchema,
   info: {
-    dimensions: 1024,
+    dimensions: NOVA_DEFAULT_DIMENSION,
     label: 'Amazon - nova-2-multimodal-embeddings-v1:0',
     supports: {
       input: ['text', 'image', 'video'],
@@ -133,9 +179,300 @@ export const SUPPORTED_EMBEDDING_MODELS: Record<string, any> = {
   'amazon.nova-2-multimodal-embeddings-v1:0': amazonNova2MultimodalEmbeddingsV1,
 };
 
+/** The request shape an embedding model family takes. */
+type EmbedderFamily = 'titan-text' | 'titan-multimodal' | 'cohere' | 'nova';
+
+/**
+ * Picks the request shape from the model ID, ignoring any cross-region
+ * inference-profile prefix.
+ */
+export function embedderFamily(modelId: string): EmbedderFamily | undefined {
+  const id = baseModelId(modelId);
+  if (id.startsWith('amazon.titan-embed-image')) return 'titan-multimodal';
+  if (id.startsWith('amazon.titan-embed')) return 'titan-text';
+  if (id.startsWith('cohere.embed')) return 'cohere';
+  if (id.startsWith('amazon.nova') && id.includes('embed')) return 'nova';
+  return undefined;
+}
+
+/** Bedrock limits Cohere text batches to 96 texts. */
+const COHERE_BATCH_SIZE = 96;
+/** Requests in flight at once for families that embed one document per call. */
+const CONCURRENCY = 8;
+
+/**
+ * Nova's video formats are Converse's, except that it spells 3GP "3gp".
+ */
+function novaVideoFormat(contentType: string): string | undefined {
+  const format = MIME_TO_VIDEO_FORMAT[contentType];
+  return format === 'three_gp' ? '3gp' : format;
+}
+
+/** A document's media, decoded from its data URL. */
+interface DocMedia {
+  contentType: string;
+  base64: string;
+  dataUrl: string;
+}
+
+function invalid(message: string): GenkitError {
+  return new GenkitError({ status: 'INVALID_ARGUMENT', message });
+}
+
+function docMedia(doc: Document, index: number): DocMedia | undefined {
+  const media = doc.media[0];
+  if (!media) return undefined;
+  const match = media.url.match(/^data:([^;,]+)?(?:;[^,]*)?;base64,([\s\S]*)$/);
+  if (!match) {
+    throw invalid(
+      `Document ${index}: embedding media must be a base64 data URL.`
+    );
+  }
+  const contentType = (media.contentType || match[1] || '').toLowerCase();
+  if (!contentType) {
+    throw invalid(`Document ${index}: media has no content type.`);
+  }
+  return {
+    contentType,
+    base64: match[2],
+    dataUrl: `data:${contentType};base64,${match[2]}`,
+  };
+}
+
+/** Runs `fn` over `items` with at most CONCURRENCY calls in flight. */
+async function mapLimit<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  // Once one call fails the result is lost, so start no more calls.
+  let failed = false;
+  const worker = async () => {
+    while (next < items.length && !failed) {
+      const i = next++;
+      try {
+        out[i] = await fn(items[i], i);
+      } catch (err) {
+        failed = true;
+        throw err;
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker)
+  );
+  return out;
+}
+
+async function invoke(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  payload: Record<string, unknown>
+): Promise<any> {
+  const input: InvokeModelCommandInput = {
+    modelId,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body: JSON.stringify(payload),
+  };
+  try {
+    const response = (await client.send(
+      new InvokeModelCommand(input)
+    )) as InvokeModelCommandOutput;
+    return JSON.parse(new TextDecoder().decode(response.body));
+  } catch (err) {
+    throw toGenkitError(err);
+  }
+}
+
+function vector(value: unknown, what: string): number[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new GenkitError({
+      status: 'INTERNAL',
+      message: `AWS Bedrock returned no embedding for ${what}.`,
+    });
+  }
+  return value as number[];
+}
+
+async function embedTitanText(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  docs: Document[],
+  options: AwsBedrockEmbedderConfig
+): Promise<number[][]> {
+  docs.forEach((doc, i) => {
+    if (doc.media.length > 0) {
+      throw invalid(`Document ${i}: ${modelId} only embeds text.`);
+    }
+  });
+  return mapLimit(docs, async (doc, i) => {
+    const res = await invoke(client, modelId, {
+      inputText: doc.text,
+      dimensions: options.dimensions,
+      normalize: options.normalize,
+    });
+    return vector(res.embedding, `document ${i}`);
+  });
+}
+
+async function embedTitanMultimodal(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  docs: Document[],
+  options: AwsBedrockEmbedderConfig
+): Promise<number[][]> {
+  return mapLimit(docs, async (doc, i) => {
+    const media = docMedia(doc, i);
+    if (
+      media &&
+      !['image/png', 'image/jpeg', 'image/jpg'].includes(media.contentType)
+    ) {
+      throw invalid(
+        `Document ${i}: ${modelId} embeds png or jpeg images, not ${media.contentType}.`
+      );
+    }
+    const res = await invoke(client, modelId, {
+      inputText: doc.text || undefined,
+      inputImage: media?.base64,
+      embeddingConfig: options.dimensions
+        ? { outputEmbeddingLength: options.dimensions }
+        : undefined,
+    });
+    return vector(res.embedding, `document ${i}`);
+  });
+}
+
+/** Cohere returns a bare array, or { float: [...] } when types are requested. */
+function cohereVectors(res: any): number[][] {
+  const embeddings = res.embeddings;
+  return Array.isArray(embeddings) ? embeddings : (embeddings?.float ?? []);
+}
+
+async function embedCohere(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  docs: Document[],
+  options: AwsBedrockEmbedderConfig
+): Promise<number[][]> {
+  const common = {
+    embedding_types: ['float'],
+    output_dimension: options.dimensions,
+  };
+  const out: number[][] = new Array(docs.length);
+
+  // Cohere embeds one modality per document; text wins when a document has both.
+  const texts: number[] = [];
+  const images: { index: number; media: DocMedia }[] = [];
+  docs.forEach((doc, i) => {
+    if (doc.text) {
+      texts.push(i);
+      return;
+    }
+    const media = docMedia(doc, i);
+    if (!media || !MIME_TO_IMAGE_FORMAT[media.contentType]) {
+      throw invalid(`Document ${i}: ${modelId} embeds text or images.`);
+    }
+    images.push({ index: i, media });
+  });
+
+  // Text batches and images (Bedrock takes one image per Cohere request)
+  // share one queue, so neither waits for the other and at most CONCURRENCY
+  // requests are in flight. Each result goes back to its document's slot.
+  const tasks: (() => Promise<void>)[] = [];
+  for (let start = 0; start < texts.length; start += COHERE_BATCH_SIZE) {
+    const batch = texts.slice(start, start + COHERE_BATCH_SIZE);
+    tasks.push(async () => {
+      const res = await invoke(client, modelId, {
+        ...common,
+        texts: batch.map((i) => docs[i].text),
+        input_type: options.inputType ?? 'search_document',
+        truncate: options.truncate ?? 'END',
+      });
+      const vectors = cohereVectors(res);
+      if (vectors.length !== batch.length) {
+        throw new GenkitError({
+          status: 'INTERNAL',
+          message: `AWS Bedrock returned ${vectors.length} Cohere embeddings for ${batch.length} texts.`,
+        });
+      }
+      batch.forEach((docIndex, j) => (out[docIndex] = vectors[j]));
+    });
+  }
+  for (const { index, media } of images) {
+    tasks.push(async () => {
+      const res = await invoke(client, modelId, {
+        ...common,
+        images: [media.dataUrl],
+        input_type: 'image',
+      });
+      out[index] = vector(cohereVectors(res)[0], `document ${index}`);
+    });
+  }
+  await mapLimit(tasks, (task) => task());
+  return out;
+}
+
+async function embedNova(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  docs: Document[],
+  options: AwsBedrockEmbedderConfig
+): Promise<number[][]> {
+  return mapLimit(docs, async (doc, i) => {
+    const params: Record<string, unknown> = {
+      embeddingPurpose: options.embeddingPurpose ?? 'GENERIC_INDEX',
+      embeddingDimension: options.dimensions ?? NOVA_DEFAULT_DIMENSION,
+    };
+    const media = docMedia(doc, i);
+    if (doc.text) {
+      params.text = {
+        truncationMode: options.truncate ?? 'END',
+        value: doc.text,
+      };
+    } else if (media && MIME_TO_IMAGE_FORMAT[media.contentType]) {
+      params.image = {
+        format: MIME_TO_IMAGE_FORMAT[media.contentType],
+        source: { bytes: media.base64 },
+      };
+    } else if (media && novaVideoFormat(media.contentType)) {
+      params.video = {
+        format: novaVideoFormat(media.contentType),
+        source: { bytes: media.base64 },
+        embeddingMode: 'AUDIO_VIDEO_COMBINED',
+      };
+    } else {
+      throw invalid(
+        `Document ${i}: ${modelId} embeds text, images or videos${media ? `, not ${media.contentType}` : ''}.`
+      );
+    }
+    const res = await invoke(client, modelId, {
+      taskType: 'SINGLE_EMBEDDING',
+      singleEmbeddingParams: params,
+    });
+    return vector(res.embeddings?.[0]?.embedding, `document ${i}`);
+  });
+}
+
+const EMBED_BY_FAMILY = {
+  'titan-text': embedTitanText,
+  'titan-multimodal': embedTitanMultimodal,
+  cohere: embedCohere,
+  nova: embedNova,
+};
+
+/**
+ * Defines a Bedrock embedder. Each input document gets its own embedding,
+ * in input order, using the request shape of the model's family (Titan Text,
+ * Titan Multimodal, Cohere or Nova). Documents with no text or media are
+ * rejected.
+ */
 export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
   const modelRef = SUPPORTED_EMBEDDING_MODELS[name];
   if (!modelRef) throw new Error(`Unsupported model: ${name}`);
+  const family = embedderFamily(name);
+  if (!family) throw new Error(`Unsupported model: ${name}`);
 
   return embedder(
     {
@@ -144,29 +481,19 @@ export function awsBedrockEmbedder(name: string, client: BedrockRuntimeClient) {
       name: modelRef.name,
     },
     async (request) => {
-      const { input, options } = request;
-      const body: InvokeModelCommandInput = {
-        modelId: name,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          inputText: input.map((d: any) => d.text).join(','),
-          dimensions: options?.dimensions,
-        }),
-      };
-
-      const command = new InvokeModelCommand(body);
-
-      const response = (await client.send(command)) as InvokeModelCommandOutput;
-      const embeddings = new TextDecoder().decode(response.body)
-        ? JSON.parse(new TextDecoder().decode(response.body))
-        : [];
-      return {
-        embeddings: [
-          {
-            embedding: embeddings.embedding as number[],
-          },
-        ],
-      };
+      const docs = request.input.map((d) => new Document(d));
+      docs.forEach((doc, i) => {
+        if (!doc.text && doc.media.length === 0) {
+          throw invalid(`Document ${i} has no text or media to embed.`);
+        }
+      });
+      const vectors = await EMBED_BY_FAMILY[family](
+        client,
+        name,
+        docs,
+        request.options ?? {}
+      );
+      return { embeddings: vectors.map((embedding) => ({ embedding })) };
     }
   );
 }

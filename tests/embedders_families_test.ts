@@ -1,0 +1,373 @@
+/**
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import {
+  amazonNova2MultimodalEmbeddingsV1,
+  awsBedrockEmbedder,
+  embedderFamily,
+} from '../src/aws_bedrock_embedders.js';
+import { baseModelId } from '../src/models.js';
+import { fakeClient, jsonBody } from './mocks/bedrock-client.js';
+
+const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+const text = (t: string) => ({ content: [{ text: t }] });
+const image = (url = PNG) => ({ content: [{ media: { url } }] });
+
+describe('embedderFamily', () => {
+  it('picks the family from the model ID, ignoring inference prefixes', () => {
+    assert.equal(embedderFamily('amazon.titan-embed-text-v2:0'), 'titan-text');
+    assert.equal(
+      embedderFamily('amazon.titan-embed-image-v1'),
+      'titan-multimodal'
+    );
+    assert.equal(embedderFamily('us.cohere.embed-v4:0'), 'cohere');
+    assert.equal(
+      embedderFamily('amazon.nova-2-multimodal-embeddings-v1:0'),
+      'nova'
+    );
+    assert.equal(embedderFamily('amazon.nova-pro-v1:0'), undefined);
+  });
+});
+
+describe('Titan Text', () => {
+  it('returns one embedding per document, in order', async () => {
+    const { client, sent } = fakeClient((c) => {
+      const { inputText } = JSON.parse(c.input.body);
+      return jsonBody({ embedding: [inputText.length] });
+    });
+    const embed = awsBedrockEmbedder('amazon.titan-embed-text-v2:0', client);
+    const res = await embed({ input: [text('a'), text('bb'), text('ccc')] });
+
+    assert.equal(sent.length, 3);
+    assert.deepEqual(res.embeddings, [
+      { embedding: [1] },
+      { embedding: [2] },
+      { embedding: [3] },
+    ]);
+  });
+
+  it('sends normalize', async () => {
+    const { client, sent } = fakeClient(() => jsonBody({ embedding: [1] }));
+    await awsBedrockEmbedder(
+      'amazon.titan-embed-text-v2:0',
+      client
+    )({
+      input: [text('a')],
+      options: { normalize: true },
+    });
+    assert.deepEqual(JSON.parse(sent[0].input.body), {
+      inputText: 'a',
+      normalize: true,
+    });
+  });
+
+  it('rejects images', async () => {
+    const { client } = fakeClient(() => jsonBody({ embedding: [1] }));
+    await assert.rejects(
+      awsBedrockEmbedder(
+        'amazon.titan-embed-text-v2:0',
+        client
+      )({ input: [image()] }),
+      /only embeds text/
+    );
+  });
+});
+
+describe('Titan Multimodal', () => {
+  it('sends text and image together with the output length', async () => {
+    const { client, sent } = fakeClient(() => jsonBody({ embedding: [1] }));
+    await awsBedrockEmbedder(
+      'amazon.titan-embed-image-v1',
+      client
+    )({
+      input: [{ content: [{ text: 'a cat' }, { media: { url: PNG } }] }],
+      options: { dimensions: 384 },
+    });
+    assert.deepEqual(JSON.parse(sent[0].input.body), {
+      inputText: 'a cat',
+      inputImage: 'iVBORw0KGgo=',
+      embeddingConfig: { outputEmbeddingLength: 384 },
+    });
+  });
+
+  it("rejects image types Titan doesn't take", async () => {
+    const { client } = fakeClient(() => jsonBody({ embedding: [1] }));
+    await assert.rejects(
+      awsBedrockEmbedder(
+        'amazon.titan-embed-image-v1',
+        client
+      )({
+        input: [image('data:image/webp;base64,AAAA')],
+      }),
+      /png or jpeg images, not image\/webp/
+    );
+  });
+});
+
+describe('Cohere', () => {
+  it('batches texts 96 at a time and keeps the order', async () => {
+    const { client, sent } = fakeClient((c) => {
+      const { texts } = JSON.parse(c.input.body);
+      return jsonBody({
+        embeddings: { float: texts.map((t: string) => [Number(t)]) },
+      });
+    });
+    const input = Array.from({ length: 100 }, (_, i) => text(String(i)));
+    const res = await awsBedrockEmbedder(
+      'cohere.embed-english-v3',
+      client
+    )({ input });
+
+    assert.equal(sent.length, 2);
+    assert.equal(JSON.parse(sent[0].input.body).texts.length, 96);
+    assert.deepEqual(
+      JSON.parse(sent[0].input.body).input_type,
+      'search_document'
+    );
+    assert.deepEqual(
+      res.embeddings.map((e) => e.embedding[0]),
+      Array.from({ length: 100 }, (_, i) => i)
+    );
+  });
+
+  it('embeds images one per request and slots them back in order', async () => {
+    const { client, sent } = fakeClient((c) => {
+      const body = JSON.parse(c.input.body);
+      return jsonBody({
+        embeddings: body.images ? [[9]] : body.texts.map(() => [1]),
+      });
+    });
+    const res = await awsBedrockEmbedder(
+      'cohere.embed-v4:0',
+      client
+    )({
+      input: [text('a'), image(), text('b')],
+      options: { inputType: 'search_query', dimensions: 256 },
+    });
+
+    const imageCall = sent
+      .map((s) => JSON.parse(s.input.body))
+      .find((b) => b.images);
+    assert.deepEqual(imageCall, {
+      embedding_types: ['float'],
+      output_dimension: 256,
+      images: [PNG],
+      input_type: 'image',
+    });
+    assert.deepEqual(
+      res.embeddings.map((e) => e.embedding[0]),
+      [1, 9, 1]
+    );
+  });
+});
+
+describe('Cohere concurrency', () => {
+  it("doesn't make images wait for text batches", async () => {
+    let imageStarted!: () => void;
+    const imageSeen = new Promise<void>((r) => (imageStarted = r));
+    const { client } = fakeClient(async (c) => {
+      const body = JSON.parse(c.input.body);
+      if (body.images) {
+        imageStarted();
+        return jsonBody({ embeddings: [[9]] });
+      }
+      // The text batch only answers once an image request has started.
+      await Promise.race([
+        imageSeen,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('images waited for text')), 500)
+        ),
+      ]);
+      return jsonBody({ embeddings: body.texts.map(() => [1]) });
+    });
+    const res = await awsBedrockEmbedder(
+      'cohere.embed-v4:0',
+      client
+    )({ input: [text('a'), image(), text('b')] });
+    assert.deepEqual(
+      res.embeddings.map((e) => e.embedding[0]),
+      [1, 9, 1]
+    );
+  });
+
+  it('keeps at most 8 requests in flight and the input order', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const { client, sent } = fakeClient(async (c) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      const body = JSON.parse(c.input.body);
+      return jsonBody({
+        embeddings: body.images
+          ? [[-1]]
+          : body.texts.map((t: string) => [Number(t)]),
+      });
+    });
+    const input = [
+      ...Array.from({ length: 200 }, (_, i) => text(String(i))),
+      ...Array.from({ length: 20 }, () => image()),
+    ];
+    const res = await awsBedrockEmbedder(
+      'cohere.embed-v4:0',
+      client
+    )({ input });
+    assert.equal(sent.length, 3 + 20);
+    assert.ok(maxInFlight <= 8, `${maxInFlight} requests in flight`);
+    assert.deepEqual(
+      res.embeddings.map((e) => e.embedding[0]),
+      [...Array.from({ length: 200 }, (_, i) => i), ...Array(20).fill(-1)]
+    );
+  });
+});
+
+describe('Nova', () => {
+  it('sends the single-embedding request for text and images', async () => {
+    const { client, sent } = fakeClient(() =>
+      jsonBody({ embeddings: [{ embeddingType: 'TEXT', embedding: [0.5] }] })
+    );
+    const res = await awsBedrockEmbedder(
+      'amazon.nova-2-multimodal-embeddings-v1:0',
+      client
+    )({
+      input: [text('hello'), image()],
+      options: { dimensions: 1024, embeddingPurpose: 'TEXT_RETRIEVAL' },
+    });
+
+    assert.deepEqual(JSON.parse(sent[0].input.body), {
+      taskType: 'SINGLE_EMBEDDING',
+      singleEmbeddingParams: {
+        embeddingPurpose: 'TEXT_RETRIEVAL',
+        embeddingDimension: 1024,
+        text: { truncationMode: 'END', value: 'hello' },
+      },
+    });
+    assert.deepEqual(
+      JSON.parse(sent[1].input.body).singleEmbeddingParams.image,
+      {
+        format: 'png',
+        source: { bytes: 'iVBORw0KGgo=' },
+      }
+    );
+    assert.equal(res.embeddings.length, 2);
+  });
+});
+
+describe('Nova dimensions', () => {
+  it('sends the advertised dimension when none is set', async () => {
+    const { client, sent } = fakeClient(() =>
+      jsonBody({ embeddings: [{ embedding: [1] }] })
+    );
+    await awsBedrockEmbedder(
+      'amazon.nova-2-multimodal-embeddings-v1:0',
+      client
+    )({ input: [text('hello')] });
+    const params = JSON.parse(sent[0].input.body).singleEmbeddingParams;
+    assert.equal(
+      params.embeddingDimension,
+      amazonNova2MultimodalEmbeddingsV1.info?.dimensions
+    );
+    assert.equal(params.embeddingDimension, 1024);
+  });
+});
+
+describe('shared model ID and media helpers', () => {
+  it('picks the family with the same prefix rules as chat models', () => {
+    for (const prefix of ['us', 'us-gov', 'eu', 'apac', 'jp', 'global']) {
+      const id = `${prefix}.cohere.embed-v4:0`;
+      assert.equal(baseModelId(id), 'cohere.embed-v4:0');
+      assert.equal(embedderFamily(id), 'cohere');
+    }
+  });
+
+  it("sends Nova videos in Converse's formats, spelling 3gp Nova's way", async () => {
+    const { client, sent } = fakeClient(() =>
+      jsonBody({ embeddings: [{ embedding: [1] }] })
+    );
+    const embed = awsBedrockEmbedder(
+      'amazon.nova-2-multimodal-embeddings-v1:0',
+      client
+    );
+    await embed({
+      input: [
+        { content: [{ media: { url: 'data:video/3gpp;base64,AAAA' } }] },
+        { content: [{ media: { url: 'data:video/quicktime;base64,AAAA' } }] },
+      ],
+    });
+    const formats = sent.map(
+      (s) => JSON.parse(s.input.body).singleEmbeddingParams.video.format
+    );
+    assert.deepEqual(formats, ['3gp', 'mov']);
+  });
+});
+
+describe('errors', () => {
+  it('rejects documents with nothing to embed', async () => {
+    const { client } = fakeClient(() => jsonBody({ embedding: [1] }));
+    await assert.rejects(
+      awsBedrockEmbedder(
+        'amazon.titan-embed-text-v2:0',
+        client
+      )({ input: [{ content: [] }] }),
+      (e: any) =>
+        e.status === 'INVALID_ARGUMENT' &&
+        /Document 0 has no text or media/.test(e.message)
+    );
+  });
+
+  it('maps Bedrock exceptions', async () => {
+    const { client } = fakeClient(() => {
+      throw Object.assign(new Error('slow down'), {
+        name: 'ThrottlingException',
+      });
+    });
+    await assert.rejects(
+      awsBedrockEmbedder(
+        'amazon.titan-embed-text-v2:0',
+        client
+      )({ input: [text('a')] }),
+      (e: any) => e.status === 'RESOURCE_EXHAUSTED'
+    );
+  });
+
+  it('starts no more requests after one fails', async () => {
+    const { client, sent } = fakeClient(() => {
+      throw Object.assign(new Error('nope'), { name: 'ValidationException' });
+    });
+    const input = Array.from({ length: 20 }, (_, i) => text(String(i)));
+    await assert.rejects(
+      awsBedrockEmbedder('amazon.titan-embed-text-v2:0', client)({ input })
+    );
+    // At most one request per worker was in flight when the first failed.
+    assert.ok(sent.length <= 8, `${sent.length} requests sent`);
+  });
+
+  it('fails when Bedrock returns no vector', async () => {
+    const { client } = fakeClient(() => jsonBody({}));
+    await assert.rejects(
+      awsBedrockEmbedder(
+        'amazon.titan-embed-text-v2:0',
+        client
+      )({ input: [text('a')] }),
+      /no embedding for document 0/
+    );
+  });
+});
