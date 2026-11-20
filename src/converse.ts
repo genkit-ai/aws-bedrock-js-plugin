@@ -31,9 +31,11 @@ import {
   SystemContentBlock,
   TokenUsage,
   Tool,
+  ToolChoice,
+  ToolConfiguration,
   VideoFormat,
 } from '@aws-sdk/client-bedrock-runtime';
-import { GenerateRequest, MessageData, Part, Role } from 'genkit';
+import { GenerateRequest, GenkitError, MessageData, Part, Role } from 'genkit';
 import {
   GenerationUsage,
   ModelResponseData,
@@ -539,6 +541,123 @@ export function fromAwsBedrockChoice(
 const JSON_INSTRUCTION =
   'You write JSON objects based on the given instructions. Please generate only the JSON output. DO NOT provide any preamble.';
 
+/**
+ * Whether the request turns tools off: toolChoice "none" with no tool named
+ * in config.toolChoice.
+ */
+function toolsDisabled(
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>
+): boolean {
+  return !request.config?.toolChoice && request.toolChoice === 'none';
+}
+
+/**
+ * Rewrites the tool calls and results in a conversation as text.
+ *
+ * Converse has no "none" tool choice, and it rejects toolUse and toolResult
+ * blocks unless tools are sent. Sending the tools would let the model call
+ * them, so for toolChoice "none" the history's tool blocks become text and
+ * no tools are sent: the model still sees what was called and returned, but
+ * can't call anything.
+ */
+function toolBlocksToText(messages: AwsMessge[]): AwsMessge[] {
+  return messages.map((m) => ({
+    ...m,
+    content: m.content?.map((block): ContentBlock => {
+      if (block.toolUse) {
+        const { name, toolUseId, input } = block.toolUse;
+        return {
+          text: `[Called tool ${name} (call ${toolUseId}) with input: ${JSON.stringify(input ?? {})}]`,
+        };
+      }
+      if (block.toolResult) {
+        const result = (block.toolResult.content ?? [])
+          .map((c) => c.text ?? JSON.stringify(c.json ?? c))
+          .join('\n');
+        return {
+          text: `[Result of tool call ${block.toolResult.toolUseId}: ${result}]`,
+        };
+      }
+      return block;
+    }),
+  }));
+}
+
+/**
+ * Whether a tool result (from the named tool, or from any tool when no name
+ * is given) is in the history after the user's last text or media message,
+ * i.e. a tool was already called this turn.
+ */
+function toolAnswered(messages: MessageData[], name?: string): boolean {
+  let lastUserTurn = -1;
+  messages.forEach((m, i) => {
+    if (m.role === 'user' && m.content.some((p) => p.text || p.media)) {
+      lastUserTurn = i;
+    }
+  });
+  return messages
+    .slice(lastUserTurn + 1)
+    .some((m) =>
+      m.content.some(
+        (p) =>
+          p.toolResponse && (name === undefined || p.toolResponse.name === name)
+      )
+    );
+}
+
+/**
+ * Builds the Converse toolConfig from the request's tools and tool choice.
+ *
+ * Genkit's toolChoice maps onto Converse as auto -> auto and required -> any.
+ * config.toolChoice names one tool the model must call. Both forced choices
+ * hold only until a tool result (the named tool's, for a named choice) is in
+ * the history after the user's last message; from then on the choice is
+ * auto, so Genkit's tool loop can finish. Models that don't declare
+ * supports.toolChoice get no toolChoice (Bedrock's default is auto). Converse has no "none"
+ * choice, so toolChoice "none" leaves the tools out (see toolsDisabled).
+ */
+function toAwsBedrockToolConfig(
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>,
+  modelSupportsTools: boolean,
+  modelSupportsToolChoice: boolean
+): ToolConfiguration | undefined {
+  const tools = request.tools ?? [];
+  if (!modelSupportsTools || tools.length === 0) return undefined;
+
+  const named = request.config?.toolChoice;
+  if (toolsDisabled(request)) return undefined;
+
+  let toolChoice: ToolChoice | undefined;
+  if (named) {
+    if (!tools.some((t) => t.name === named)) {
+      throw new GenkitError({
+        status: 'INVALID_ARGUMENT',
+        message: `toolChoice "${named}" does not match any of the request's tools (${tools.map((t) => t.name).join(', ')}).`,
+      });
+    }
+    // Genkit's tool loop resends the same config after running the tool, so
+    // forcing the tool every turn would loop until Genkit gives up. Once
+    // the named tool has answered since the user's last message, the model
+    // is left to answer (auto).
+    toolChoice = toolAnswered(request.messages, named)
+      ? { auto: {} }
+      : { tool: { name: named } };
+  } else if (request.toolChoice === 'required') {
+    // Same rule as a named tool: Genkit resends toolChoice after each tool
+    // result, and forcing a call every turn would never let the loop end.
+    toolChoice = toolAnswered(request.messages) ? { auto: {} } : { any: {} };
+  } else if (request.toolChoice === 'auto') {
+    toolChoice = { auto: {} };
+  }
+
+  // Not every Bedrock model accepts a forced choice (any/tool). Auto is the
+  // default, so models without toolChoice support get no toolChoice at all.
+  return {
+    tools: tools.map(toAwsBedrockTool),
+    toolChoice: modelSupportsToolChoice ? toolChoice : undefined,
+  };
+}
+
 export function toAwsBedrockRequestBody(
   modelName: string,
   request: GenerateRequest<typeof AwsBedrockConfigSchema>,
@@ -571,7 +690,10 @@ export function toAwsBedrockRequestBody(
   const messages = systemRole
     ? requestMessages
     : simulateSystemPrompt(requestMessages);
-  const awsBedrockMessages = toAwsBedrockMessages(messages);
+  let awsBedrockMessages = toAwsBedrockMessages(messages);
+  if (toolsDisabled(request)) {
+    awsBedrockMessages = toolBlocksToText(awsBedrockMessages);
+  }
 
   const awsBedrockSystemMessage = systemRole
     ? getSystemMessage(requestMessages) || []
@@ -586,12 +708,11 @@ export function toAwsBedrockRequestBody(
     messages: awsBedrockMessages,
     system:
       awsBedrockSystemMessage.length > 0 ? awsBedrockSystemMessage : undefined,
-    toolConfig:
-      request.tools &&
-      model.info.supports.tools === true &&
-      request.tools.length > 0
-        ? { tools: request.tools.map(toAwsBedrockTool) }
-        : undefined,
+    toolConfig: toAwsBedrockToolConfig(
+      request,
+      model.info.supports.tools === true,
+      model.info.supports.toolChoice === true
+    ),
     modelId: modelString,
     outputConfig:
       jsonMode && request.output?.schema

@@ -199,6 +199,22 @@ const result = ai.generate({
 console.log(result.then((res) => res.text));
 ```
 
+#### Tool choice
+
+Genkit's `toolChoice` is passed to Bedrock: `'auto'` lets the model decide, `'required'` makes it call a tool, and `'none'` sends no tools. To make the model call one specific tool, name it in `config.toolChoice`:
+
+```typescript
+const result = await ai.generate({
+  tools: [specialTool],
+  prompt: "What's for breakfast?",
+  config: { toolChoice: 'specialTool' },
+});
+```
+
+`'required'` and the named tool are forced only until a tool result (the named tool's, for a named choice) is in the conversation after the last user message. After that the choice is `auto`, so the model can answer with the tool's result instead of being forced to call a tool again on every turn of Genkit's tool loop.
+
+Bedrock accepts a forced choice (`'required'` or a named tool) only on some models, and the plugin declares `supports.toolChoice` for exactly those: Anthropic Claude 3 and later, Amazon Nova and Mistral Large. Other models (Llama, Cohere Command, AI21, Gemma, the other Mistral models) and models the plugin doesn't know are not declared, so Genkit warns that they don't support `toolChoice`, and the plugin sends their tools with no `toolChoice`. Bedrock's default is `auto`, so tools still work there; `'required'` and named choices just aren't enforced. Converse has no "none" choice, and it rejects tool calls and results in the conversation unless tools are sent. So with `'none'`, earlier tool calls and results are sent to the model as text, and no tools are sent: the model sees what was called and returned but can't call a tool.
+
 ### Structured Output
 
 In order to use [Genkit structured output](https://genkit.dev/docs/js/models/#structured-output) with the Bedrock APIs, the schema sent to Bedrock needs to have `additionalProperties` set to false. If you have your schemas defined as `zod` schemas you can use `zodToJsonSchema` along with `schema.strict()` to get it in the correct format

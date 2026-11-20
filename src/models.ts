@@ -32,6 +32,7 @@ export const amazonNova2LiteV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -52,6 +53,7 @@ export const amazonNovaPremierV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -72,6 +74,7 @@ export const amazonNovaProV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -89,6 +92,7 @@ export const amazonNovaLiteV1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
+      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -105,6 +109,7 @@ export const amazonNovaMicroV1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
+      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -269,6 +274,7 @@ export const anthropicClaudeSonnet4V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -289,6 +295,7 @@ export const anthropicClaudeOpus4V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: false,
         systemRole: true,
         output: ['text', 'json'],
@@ -309,6 +316,7 @@ export const anthropicClaudeOpus41V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -331,6 +339,7 @@ export const anthropicClaudeSonnet45V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -352,6 +361,7 @@ export const anthropicClaudeHaiku45V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -373,6 +383,7 @@ export const anthropicClaudeOpus45V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -394,6 +405,7 @@ export const anthropicClaudeOpus46V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -415,6 +427,7 @@ export const anthropicClaudeSonnet46V1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -436,6 +449,7 @@ export const anthropicClaude35HaikuV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: false,
         systemRole: true,
         output: ['text', 'json'],
@@ -456,6 +470,7 @@ export const anthropicClaude3HaikuV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: false,
         systemRole: true,
         output: ['text', 'json'],
@@ -476,6 +491,7 @@ export const anthropicClaude3OpusV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: false,
         systemRole: true,
         output: ['text', 'json'],
@@ -498,6 +514,7 @@ export const anthropicClaude37SonnetV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -520,6 +537,7 @@ export const anthropicClaude35SonnetV2 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -542,6 +560,7 @@ export const anthropicClaude35SonnetV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -562,6 +581,7 @@ export const anthropicClaude3SonnetV1 = (
       supports: {
         multiturn: true,
         tools: true,
+        toolChoice: true,
         media: true,
         systemRole: true,
         output: ['text', 'json'],
@@ -695,6 +715,7 @@ export const mistralLarge3675BInstruct = modelRef({
     supports: {
       multiturn: true,
       tools: true,
+      toolChoice: true,
       media: true,
       systemRole: true,
       output: ['text', 'json'],
@@ -728,6 +749,7 @@ export const mistralLarge2402V1 = modelRef({
     supports: {
       multiturn: true,
       tools: true,
+      toolChoice: true,
       media: false,
       systemRole: true,
       output: ['text', 'json'],
