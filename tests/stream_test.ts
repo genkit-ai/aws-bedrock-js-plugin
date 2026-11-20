@@ -31,11 +31,10 @@ async function run(
   onChunk: (chunk: any) => void = () => {}
 ) {
   const { client } = fakeClient(() => streamOf(events));
-  return awsBedrockModel(
-    'amazon.nova-lite-v1:0',
-    client,
-    'us'
-  )({ ...request, ...extra }, { onChunk });
+  return awsBedrockModel('amazon.nova-lite-v1:0', client)(
+    { ...request, ...extra },
+    { onChunk }
+  );
 }
 
 const textDelta = (index: number, text: string) => ({

@@ -31,7 +31,7 @@ describe('awsBedrockModel', () => {
       stopReason: 'end_turn',
       usage: { inputTokens: 3, outputTokens: 1, totalTokens: 4 },
     }));
-    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client);
     const res = await model(request);
 
     assert.equal(sent.length, 1);
@@ -64,7 +64,7 @@ describe('awsBedrockModel', () => {
       },
       stopReason: 'tool_use',
     }));
-    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client);
     const res = await model(request);
 
     assert.deepEqual(res.message?.content, [
@@ -79,7 +79,7 @@ describe('awsBedrockModel', () => {
       },
       stopReason: 'end_turn',
     }));
-    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client);
     const res = await model({ ...request, output: { format: 'json' } });
 
     assert.deepEqual(res.message?.content, [{ data: { n: 1 } }]);
@@ -100,7 +100,7 @@ describe('awsBedrockModel', () => {
         },
       ])
     );
-    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client);
     const chunks: string[] = [];
     const res = await model(request, {
       onChunk: (c) => chunks.push(c.content.map((p) => p.text ?? '').join('')),
@@ -143,7 +143,7 @@ describe('awsBedrockModel', () => {
         { messageStop: { stopReason: 'tool_use' } },
       ])
     );
-    const model = awsBedrockModel('amazon.nova-lite-v1:0', client, 'us');
+    const model = awsBedrockModel('amazon.nova-lite-v1:0', client);
     const res = await model(request, { onChunk: () => {} });
 
     assert.deepEqual(res.message?.content, [

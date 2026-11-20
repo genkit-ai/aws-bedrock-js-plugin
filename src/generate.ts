@@ -26,39 +26,21 @@ import { AwsBedrockConfigSchema } from './types.js';
 
 import { fromAwsBedrockChoice, toAwsBedrockRequestBody } from './converse.js';
 import { toGenkitError } from './errors.js';
-import { SUPPORTED_AWS_BEDROCK_MODELS } from './models.js';
+import { modelInfoFor } from './models.js';
 import { converseStream } from './stream.js';
 
 export function awsBedrockModel(
   name: string,
-  client: BedrockRuntimeClient,
-  inferenceRegion: string
+  client: BedrockRuntimeClient
 ): ModelAction<typeof AwsBedrockConfigSchema> {
-  const modelId = `aws-bedrock/${name}`;
-  const modelReference = SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)[name];
-
-  // If model is not in the supported list, create a default configuration
-  const modelInfo = modelReference
-    ? {
-        name: modelId,
-        ...modelReference.info,
-        configSchema:
-          SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)[name].configSchema,
-      }
-    : {
-        name: modelId,
-        info: {
-          label: `AWS Bedrock - ${name}`,
-          supports: {
-            multiturn: true,
-            tools: true,
-            media: true,
-            systemRole: true,
-            output: ['text', 'json'],
-          },
-        },
-        configSchema: AwsBedrockConfigSchema,
-      };
+  const info = modelInfoFor(name);
+  const modelInfo = {
+    name: `aws-bedrock/${name}`,
+    label: info.label,
+    versions: info.versions,
+    supports: info.supports,
+    configSchema: AwsBedrockConfigSchema,
+  };
 
   return model(
     modelInfo,
@@ -74,7 +56,7 @@ export function awsBedrockModel(
         abortSignal: AbortSignal;
       }
     ) => {
-      const body = toAwsBedrockRequestBody(name, request, inferenceRegion);
+      const body = toAwsBedrockRequestBody(name, request);
       const jsonMode =
         request.output?.format === 'json' ||
         request.output?.contentType === 'application/json';

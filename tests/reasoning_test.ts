@@ -114,8 +114,7 @@ describe('reasoning', () => {
     );
     const res = await awsBedrockModel(
       'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-      client,
-      'us'
+      client
     )(
       { messages: [{ role: 'user', content: [{ text: 'hi' }] }] },
       { onChunk: () => {} }
@@ -190,8 +189,7 @@ describe('reasoning', () => {
     const chunks: any[] = [];
     const res = await awsBedrockModel(
       'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-      client,
-      'us'
+      client
     )(
       { messages: [{ role: 'user', content: [{ text: '17*23?' }] }] },
       { onChunk: (c) => chunks.push(...c.content) }

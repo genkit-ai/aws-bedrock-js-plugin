@@ -15,13 +15,29 @@
  * limitations under the License.
  */
 
+import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import {
-  BedrockRuntimeClient,
-  BedrockRuntimeClientConfig,
-} from '@aws-sdk/client-bedrock-runtime';
-import { ModelAction } from 'genkit/model';
-import { genkitPluginV2, type ResolvableAction } from 'genkit/plugin';
-import { AwsBedrockConfigSchema } from './types.js';
+  embedderRef,
+  rerankerRef,
+  type EmbedderReference,
+  type ModelReference,
+  type RerankerReference,
+} from 'genkit';
+import { modelRef, type ModelAction } from 'genkit/model';
+import {
+  embedderActionMetadata,
+  genkitPluginV2,
+  modelActionMetadata,
+  type GenkitPluginV2,
+  type ResolvableAction,
+} from 'genkit/plugin';
+import { type ActionType } from 'genkit/registry';
+import {
+  __testClient,
+  AwsBedrockConfigSchema,
+  type AwsBedrockConfig,
+  type PluginOptions,
+} from './types.js';
 
 import {
   amazonNova2MultimodalEmbeddingsV1,
@@ -32,7 +48,10 @@ import {
   cohereEmbedEnglishV3,
   cohereEmbedMultilingualV3,
   cohereEmbedV4,
+  embedderFamily,
   SUPPORTED_EMBEDDING_MODELS,
+  TextEmbeddingConfigSchema,
+  type AwsBedrockEmbedderConfig,
 } from './aws_bedrock_embedders.js';
 import {
   ai21Jamba15LargeV1,
@@ -103,7 +122,12 @@ import {
   ImageGenerationConfigSchema,
   SUPPORTED_IMAGE_MODELS,
 } from './image.js';
-import { awsBedrockReranker, SUPPORTED_RERANKERS } from './rerank.js';
+import { modelInfoFor } from './models.js';
+import {
+  awsBedrockReranker,
+  RerankConfigSchema,
+  SUPPORTED_RERANKERS,
+} from './rerank.js';
 
 import {
   allOf,
@@ -252,13 +276,23 @@ export type {
   RequestData,
 };
 
-export interface PluginOptions extends BedrockRuntimeClientConfig {
-  /**
-   * Additional model names to register that are not in the predefined list.
-   * These models will be available using the 'aws-bedrock/model-name' format.
-   * @example ['custom.my-custom-model-v1:0']
-   */
-  customModels?: string[];
+export { type PluginOptions } from './types.js';
+
+const PLUGIN = 'aws-bedrock';
+
+function inferenceRegionFor(options?: PluginOptions): string {
+  const region =
+    typeof options?.region === 'string' ? options.region : undefined;
+  if (!region) return 'us'; // default to us
+  if (region.includes('us-gov')) return 'us-gov';
+  if (region.includes('us')) return 'us';
+  if (region.includes('eu-')) return 'eu';
+  if (region.includes('ap-')) return 'apac';
+  return '';
+}
+
+function clientFor(options?: PluginOptions): BedrockRuntimeClient {
+  return options?.[__testClient] ?? new BedrockRuntimeClient(options || {});
 }
 
 /**
@@ -287,49 +321,28 @@ export function defineAwsBedrockModel(
 ): ModelAction<
   typeof AwsBedrockConfigSchema | typeof ImageGenerationConfigSchema
 > {
-  const client = new BedrockRuntimeClient(options || {});
-
-  const region =
-    typeof options?.region === 'string' ? options.region : undefined;
-  let inferenceRegion = '';
-  if (!region) {
-    inferenceRegion = 'us'; // default to us
-  } else if (region.includes('us-gov')) {
-    inferenceRegion = 'us-gov';
-  } else if (region.includes('us')) {
-    inferenceRegion = 'us';
-  } else if (region.includes('eu-')) {
-    inferenceRegion = 'eu';
-  } else if (region.includes('ap-')) {
-    inferenceRegion = 'apac';
-  }
-
-  // Same routing as customModels: image model IDs get the image model.
-  return imageFamily(name)
-    ? awsBedrockImageModel(name, client)
-    : awsBedrockModel(name, client, inferenceRegion);
+  // Same routing as customModels and resolve: image IDs get the image model.
+  return modelFor(name, clientFor(options));
 }
 
-export function awsBedrock(options?: PluginOptions) {
-  const client = new BedrockRuntimeClient(options || {});
+/** Strips the plugin's namespace from an action name. */
+function actionId(name: string): string {
+  return name.startsWith(`${PLUGIN}/`) ? name.slice(PLUGIN.length + 1) : name;
+}
 
-  const region =
-    typeof options?.region === 'string' ? options.region : undefined;
-  let inferenceRegion = '';
-  if (!region) {
-    inferenceRegion = 'us'; // default to us
-  } else if (region.includes('us-gov')) {
-    inferenceRegion = 'us-gov';
-  } else if (region.includes('us')) {
-    inferenceRegion = 'us';
-  } else if (region.includes('eu-')) {
-    inferenceRegion = 'eu';
-  } else if (region.includes('ap-')) {
-    inferenceRegion = 'apac';
-  }
+/** Builds the model action for any Bedrock model ID. */
+function modelFor(id: string, client: BedrockRuntimeClient) {
+  return imageFamily(id)
+    ? awsBedrockImageModel(id, client)
+    : awsBedrockModel(id, client);
+}
+
+function awsBedrockPlugin(options?: PluginOptions): GenkitPluginV2 {
+  const client = clientFor(options);
+  const inferenceRegion = inferenceRegionFor(options);
 
   return genkitPluginV2({
-    name: 'aws-bedrock',
+    name: PLUGIN,
     init: async () => {
       const actions: ResolvableAction[] = [];
 
@@ -337,24 +350,18 @@ export function awsBedrock(options?: PluginOptions) {
       for (const name of Object.keys(
         SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)
       )) {
-        actions.push(awsBedrockModel(name, client, inferenceRegion));
+        actions.push(awsBedrockModel(name, client));
       }
 
       // Register custom models if provided, skipping ones registered below
       // or above, which would otherwise be defined twice.
-      if (options?.customModels) {
-        const registered = new Set([
-          ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)),
-          ...Object.keys(SUPPORTED_IMAGE_MODELS),
-        ]);
-        for (const name of new Set(options.customModels)) {
-          if (registered.has(name)) continue;
-          actions.push(
-            imageFamily(name)
-              ? awsBedrockImageModel(name, client)
-              : awsBedrockModel(name, client, inferenceRegion)
-          );
-        }
+      const registered = new Set([
+        ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)),
+        ...Object.keys(SUPPORTED_IMAGE_MODELS),
+      ]);
+      for (const name of new Set(options?.customModels ?? [])) {
+        if (registered.has(name)) continue;
+        actions.push(modelFor(name, client));
       }
 
       // Register image models
@@ -374,7 +381,125 @@ export function awsBedrock(options?: PluginOptions) {
 
       return actions;
     },
+
+    // Any other Bedrock ID resolves on first use: newer models and
+    // inference profiles (us., eu., apac., jp., au., global., ...) work
+    // without being added to the plugin. Capabilities are looked up without
+    // the profile prefix; the full ID is sent to Bedrock.
+    resolve: (actionType: ActionType, name: string) => {
+      const id = actionId(name);
+      switch (actionType) {
+        case 'model':
+          // Rerank and embedding models can't be called through generate().
+          if (id.includes('rerank') || embedderFamily(id)) return undefined;
+          return modelFor(id, client);
+        case 'embedder':
+          return embedderFamily(id)
+            ? awsBedrockEmbedder(id, client)
+            : undefined;
+        case 'reranker':
+          // Amazon Rerank isn't served through InvokeModel (see rerank.ts).
+          return id.includes('rerank') && !/(^|\.)amazon\.rerank/.test(id)
+            ? awsBedrockReranker(id, client)
+            : undefined;
+        default:
+          return undefined;
+      }
+    },
+
+    list: async () => [
+      ...Object.keys(SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)).map((id) =>
+        modelActionMetadata({
+          name: `${PLUGIN}/${id}`,
+          info: modelInfoFor(id),
+          configSchema: AwsBedrockConfigSchema,
+        })
+      ),
+      ...Object.values(SUPPORTED_IMAGE_MODELS).map((ref) =>
+        modelActionMetadata({
+          name: ref.name,
+          info: ref.info,
+          configSchema: ImageGenerationConfigSchema,
+        })
+      ),
+      ...Object.values(SUPPORTED_EMBEDDING_MODELS).map((ref) =>
+        embedderActionMetadata({
+          name: ref.name,
+          info: ref.info,
+          configSchema: TextEmbeddingConfigSchema,
+        })
+      ),
+    ],
   });
 }
+
+export type AwsBedrockPlugin = {
+  (options?: PluginOptions): GenkitPluginV2;
+  /** A reference to any Bedrock chat or image model, by model ID. */
+  model(
+    name: string,
+    config?: AwsBedrockConfig
+  ): ModelReference<typeof AwsBedrockConfigSchema>;
+  /** A reference to any Bedrock embedding model, by model ID. */
+  embedder(
+    name: string,
+    config?: AwsBedrockEmbedderConfig
+  ): EmbedderReference<typeof TextEmbeddingConfigSchema>;
+  /** A reference to a Bedrock rerank model, by model ID. */
+  reranker(name: string): RerankerReference<typeof RerankConfigSchema>;
+};
+
+/**
+ * The AWS Bedrock plugin.
+ *
+ * @example
+ * ```typescript
+ * const ai = genkit({ plugins: [awsBedrock({ region: 'us-east-1' })] });
+ * await ai.generate({
+ *   model: awsBedrock.model('global.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+ *   prompt: 'Hello!',
+ * });
+ * ```
+ */
+export const awsBedrock = awsBedrockPlugin as AwsBedrockPlugin;
+
+awsBedrock.model = (name: string, config?: AwsBedrockConfig) => {
+  if (imageFamily(name)) {
+    return modelRef({
+      name: `${PLUGIN}/${name}`,
+      info: SUPPORTED_IMAGE_MODELS[name]?.info ?? {
+        label: `AWS Bedrock - ${name}`,
+        supports: { output: ['media'] },
+      },
+      configSchema: ImageGenerationConfigSchema,
+      config,
+    }) as unknown as ModelReference<typeof AwsBedrockConfigSchema>;
+  }
+  return modelRef({
+    name: `${PLUGIN}/${name}`,
+    info: modelInfoFor(name),
+    configSchema: AwsBedrockConfigSchema,
+    config,
+  });
+};
+
+awsBedrock.embedder = (name: string, config?: AwsBedrockEmbedderConfig) =>
+  embedderRef({
+    name: `${PLUGIN}/${name}`,
+    info: SUPPORTED_EMBEDDING_MODELS[name]?.info,
+    configSchema: TextEmbeddingConfigSchema,
+    config,
+  });
+
+awsBedrock.reranker = (name: string) =>
+  rerankerRef({
+    name: `${PLUGIN}/${name}`,
+    configSchema: RerankConfigSchema,
+    // genkit's rerank() looks a reference up in the registry only if it has
+    // `info`; without it the reference is called as if it were the action.
+    info: (
+      SUPPORTED_RERANKERS as Record<string, { info?: { label?: string } }>
+    )[name]?.info ?? { label: `AWS Bedrock - ${name}` },
+  });
 
 export default awsBedrock;

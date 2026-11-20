@@ -395,7 +395,21 @@ Config fields a family doesn't take are ignored for it. For Titan and Nova Canva
 
 ## Using Custom Models
 
-If you want to use a model that is not exported by this plugin, you can register it using the `customModels` option when initializing the plugin:
+Any Bedrock model ID works, including newer models and cross-region inference profiles (`us.`, `eu.`, `apac.`, `jp.`, `au.`, `global.`, `us-gov.`). Reference it with `awsBedrock.model()` or by name, and the plugin defines it on first use:
+
+```typescript
+const response = await ai.generate({
+  model: awsBedrock.model('global.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  prompt: 'Hello!',
+});
+
+// or by name
+await ai.generate({ model: 'aws-bedrock/openai.gpt-oss-20b-1:0', prompt: 'Hello!' });
+```
+
+The plugin looks up a model's capabilities (tools, media, system prompt, structured output) by its ID without the inference-profile prefix, and sends the full ID to Bedrock. Models it doesn't know get modern Converse defaults. `awsBedrock.embedder()` and `awsBedrock.reranker()` work the same way for embedding and rerank models.
+
+You can also register models up front with the `customModels` option when initializing the plugin:
 
 ```typescript
 import { genkit, z } from 'genkit';

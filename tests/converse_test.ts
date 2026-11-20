@@ -165,19 +165,15 @@ describe('toAwsBedrockRequestBody', () => {
   };
 
   it('maps the common config to inferenceConfig', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        ...base,
-        config: {
-          maxOutputTokens: 100,
-          temperature: 0.5,
-          topP: 0.9,
-          stopSequences: ['END'],
-        },
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      ...base,
+      config: {
+        maxOutputTokens: 100,
+        temperature: 0.5,
+        topP: 0.9,
+        stopSequences: ['END'],
       },
-      'us'
-    );
+    });
     assert.equal(body.modelId, 'amazon.nova-lite-v1:0');
     assert.deepEqual(body.inferenceConfig, {
       maxTokens: 100,
@@ -189,17 +185,13 @@ describe('toAwsBedrockRequestBody', () => {
 
   it('maps tools, including MCP inputJsonSchema', () => {
     const schema = { type: 'object', properties: { city: { type: 'string' } } };
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        ...base,
-        tools: [
-          { name: 'a', description: 'A', inputSchema: schema },
-          { name: 'b', description: 'B', inputJsonSchema: schema } as any,
-        ],
-      },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      ...base,
+      tools: [
+        { name: 'a', description: 'A', inputSchema: schema },
+        { name: 'b', description: 'B', inputJsonSchema: schema } as any,
+      ],
+    });
     assert.deepEqual(body.toolConfig?.tools, [
       {
         toolSpec: {
@@ -219,21 +211,19 @@ describe('toAwsBedrockRequestBody', () => {
   });
 
   it('leaves tools out for models without tool support', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.titan-text-express-v1',
-      { ...base, tools: [{ name: 'a', description: 'A' }] },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.titan-text-express-v1', {
+      ...base,
+      tools: [{ name: 'a', description: 'A' }],
+    });
     assert.equal(body.toolConfig, undefined);
   });
 
   it('sends a JSON schema as outputConfig in JSON mode', () => {
     const schema = { type: 'object', properties: { n: { type: 'number' } } };
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      { ...base, output: { format: 'json', schema } },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      ...base,
+      output: { format: 'json', schema },
+    });
     assert.deepEqual(body.outputConfig, {
       textFormat: {
         type: 'json_schema',
@@ -243,16 +233,12 @@ describe('toAwsBedrockRequestBody', () => {
   });
 
   it('sends the system prompt for models with a system role', () => {
-    const body = toAwsBedrockRequestBody(
-      'amazon.nova-lite-v1:0',
-      {
-        messages: [
-          { role: 'system', content: [{ text: 'be brief' }] },
-          ...base.messages,
-        ],
-      },
-      'us'
-    );
+    const body = toAwsBedrockRequestBody('amazon.nova-lite-v1:0', {
+      messages: [
+        { role: 'system', content: [{ text: 'be brief' }] },
+        ...base.messages,
+      ],
+    });
     assert.deepEqual(body.system?.[0], { text: 'be brief' });
   });
 

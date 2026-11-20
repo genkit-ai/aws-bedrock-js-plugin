@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import {
+  BedrockRuntimeClient,
+  BedrockRuntimeClientConfig,
+} from '@aws-sdk/client-bedrock-runtime';
 import { GenerationCommonConfigSchema, z } from 'genkit';
 
 /**
@@ -79,3 +83,25 @@ export const AwsBedrockConfigSchema = GenerationCommonConfigSchema.extend({
 });
 
 export type AwsBedrockConfig = z.infer<typeof AwsBedrockConfigSchema>;
+
+/**
+ * Lets tests hand the plugin a fake Bedrock client. Not part of the public
+ * API. Same pattern as the plugins in the genkit repo.
+ */
+export const __testClient = Symbol('testClient');
+
+/**
+ * Options for the AWS Bedrock plugin. Every BedrockRuntimeClient option
+ * (region, credentials, endpoint, retries, ...) is passed to the client.
+ */
+export interface PluginOptions extends BedrockRuntimeClientConfig {
+  /**
+   * Additional model names to register that are not in the predefined list.
+   * These models will be available using the 'aws-bedrock/model-name' format.
+   * Any model ID also resolves on first use without being listed here.
+   * @example ['custom.my-custom-model-v1:0']
+   */
+  customModels?: string[];
+  /** @internal */
+  [__testClient]?: BedrockRuntimeClient;
+}

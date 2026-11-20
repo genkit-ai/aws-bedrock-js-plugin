@@ -45,7 +45,7 @@ import {
 import { createHash } from 'node:crypto';
 import { AwsBedrockConfig, AwsBedrockConfigSchema } from './types.js';
 
-import { SUPPORTED_AWS_BEDROCK_MODELS } from './models.js';
+import { modelInfoFor } from './models.js';
 
 function toAwsBedrockRole(role: Role): ConversationRole | 'system' {
   switch (role) {
@@ -748,19 +748,10 @@ function toAwsBedrockToolConfig(
 
 export function toAwsBedrockRequestBody(
   modelName: string,
-  request: GenerateRequest<typeof AwsBedrockConfigSchema>,
-  inferenceRegion: string
+  request: GenerateRequest<typeof AwsBedrockConfigSchema>
 ) {
-  const model = SUPPORTED_AWS_BEDROCK_MODELS(inferenceRegion)[modelName] || {
-    info: {
-      supports: {
-        output: ['text', 'json'],
-        systemRole: true,
-        tools: true,
-      },
-    },
-  };
-  const systemRole = model.info.supports?.systemRole === true;
+  const supports = modelInfoFor(modelName).supports;
+  const systemRole = supports.systemRole === true;
   const jsonMode =
     request.output?.format === 'json' ||
     request.output?.contentType === 'application/json';
@@ -768,7 +759,7 @@ export function toAwsBedrockRequestBody(
   // The JSON instruction joins the system prompt, so models without a
   // system role get it too, inside the simulated system prompt.
   let requestMessages = request.messages;
-  if (jsonMode && model.info.supports?.output?.includes('json')) {
+  if (jsonMode && supports.output.includes('json')) {
     requestMessages = [
       ...requestMessages,
       { role: 'system', content: [{ text: JSON_INSTRUCTION }] },
@@ -788,9 +779,7 @@ export function toAwsBedrockRequestBody(
     : [];
 
   const config: AwsBedrockConfig = request.config ?? {};
-  const modelString = (request.config?.version ||
-    model.version ||
-    modelName) as string;
+  const modelString = (request.config?.version || modelName) as string;
 
   const body: ConverseCommandInput | ConverseStreamCommandInput = {
     messages: awsBedrockMessages,
@@ -798,8 +787,8 @@ export function toAwsBedrockRequestBody(
       awsBedrockSystemMessage.length > 0 ? awsBedrockSystemMessage : undefined,
     toolConfig: toAwsBedrockToolConfig(
       request,
-      model.info.supports.tools === true,
-      model.info.supports.toolChoice === true
+      supports.tools === true,
+      supports.toolChoice === true
     ),
     modelId: modelString,
     outputConfig:
